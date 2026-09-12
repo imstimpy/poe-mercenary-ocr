@@ -1,0 +1,51 @@
+{
+  "calibration_resolution": [2560, 1440],
+  "note": "Absolute pixel coords are only valid at the calibration_resolution/UI-scale above. window_relative fractions (0-1) are relative to the outer window box and should be more portable across resolutions -- multiply by the window's current w/h and add its x0,y0 to get absolute coords at a new resolution.",
+  "regions": {
+    "window": {
+      "absolute": {"x0": 870, "y0": 78, "x1": 1672, "y1": 1215},
+      "window_relative": {"x0": 0.0, "y0": 0.0, "x1": 1.0, "y1": 1.0}
+    },
+    "name": {
+      "absolute": {"x0": 1010, "y0": 87, "x1": 1530, "y1": 140},
+      "window_relative": {"x0": 0.1746, "y0": 0.0079, "x1": 0.8229, "y1": 0.0545},
+      "note": "Bottom edge extended from 130 to 140 -- descender depth (e.g. the tail of 'y') varies slightly between renders, and 130 clipped it in at least one real capture ('Kryxon' lost its descender) despite fitting with only ~2px to spare in another ('Bardiyan'). 140 stays safely clear of the type_subtype row starting at y=144-145."
+    },
+    "type_subtype": {
+      "absolute": {"x0": 1052, "y0": 145, "x1": 1267, "y1": 185},
+      "window_relative": {"x0": 0.2269, "y0": 0.0589, "x1": 0.4950, "y1": 0.0941},
+      "note": "Left edge deliberately excludes the type-icon badge (verified user-supplied box, calibrated against a Str/Dex mercenary where the icon shape had previously leaked stray OCR characters into the type text)."
+    },
+    "equipment_rucksack_container": {
+      "absolute": {"x0": 907, "y0": 311, "x1": 1629, "y1": 769},
+      "window_relative": {"x0": 0.0461, "y0": 0.2049, "x1": 0.9464, "y1": 0.6078}
+    },
+    "equipment_grid": {
+      "absolute": {"x0": 914, "y0": 318, "x1": 1473, "y1": 762},
+      "window_relative": {"x0": 0.0549, "y0": 0.2111, "x1": 0.7519, "y1": 0.6015}
+    },
+    "rucksack": {
+      "absolute": {"x0": 1485, "y0": 553, "x1": 1622, "y1": 690},
+      "window_relative": {"x0": 0.7668, "y0": 0.4178, "x1": 0.9376, "y1": 0.5383},
+      "note": "Quadrant position is fixed; the item occupying each slot varies per encounter and must be identified via icon matching, not assumed from the slot name.",
+      "quadrants": {
+        "top_left": {"x0": 1485, "y0": 553, "x1": 1553, "y1": 621},
+        "top_right": {"x0": 1553, "y0": 553, "x1": 1622, "y1": 621},
+        "bottom_left": {"x0": 1485, "y0": 621, "x1": 1553, "y1": 690},
+        "bottom_right": {"x0": 1553, "y0": 621, "x1": 1622, "y1": 690}
+      }
+    },
+    "skills_supports_container": {
+      "absolute": {"x0": 891, "y0": 772, "x1": 1640, "y1": 1159},
+      "window_relative": {"x0": 0.0262, "y0": 0.6104, "x1": 0.9601, "y1": 0.9516}
+    },
+    "skills": {
+      "absolute": {"x0": 898, "y0": 782, "x1": 1266, "y1": 1146},
+      "window_relative": {"x0": 0.0349, "y0": 0.6191, "x1": 0.4938, "y1": 0.9401}
+    },
+    "supports": {
+      "absolute": {"x0": 1273, "y0": 779, "x1": 1633, "y1": 1152},
+      "window_relative": {"x0": 0.5025, "y0": 0.6166, "x1": 0.9514, "y1": 0.9446}
+    }
+  }
+}

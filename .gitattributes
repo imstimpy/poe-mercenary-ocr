@@ -1,0 +1,12 @@
+# Normalize line endings to LF in the repo and on checkout, regardless
+# of the cloning machine's platform or local core.autocrlf setting --
+# this is what actually fixes inconsistent line endings for good,
+# rather than a one-off manual conversion that only holds until the
+# next person with a different local git config touches the file (see
+# the "LF will be replaced by CRLF" warning this was added to resolve).
+* text=auto eol=lf
+
+# Explicit for safety, even though Git's binary-detection heuristic
+# would likely catch these anyway -- never attempt line-ending
+# conversion on the PNG test/reference data in this repo.
+*.png binary
