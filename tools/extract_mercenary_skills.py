@@ -30,6 +30,60 @@ def get_skill_names_from_id(skill_ids: List[int], skills_table: List[Dict[str, A
     return skill_names
 
 
+def get_support_count_tier(support_count_id: int, support_counts_table: List[Dict[str, Any]]) -> str:
+    """
+    Resolves a skill's raw "SupportCount" field into its tier name
+    (Low/Medium/High/None) via mercenarysupportcounts.json.
+
+    This field is NOT a literal support count, despite the name -- it's a
+    foreign-key index into mercenarysupportcounts.datc64 (a 4-row
+    Low/Medium/High/None enum). Confirmed directly: every one of the 271
+    skills in mercenaryskills.json has a SupportCount of exactly 0, 1, 2,
+    or 3 -- the same range as that enum's row indices -- and a real
+    level-83 mercenary warrant (Infamous Bladecaster/Malkan) showed every
+    one of its 5 skills carrying MORE actual equipped supports than its
+    raw SupportCount value would mean if read as a literal integer (e.g.
+    Flame Dash: raw value 0, but 2 supports equipped in the warrant).
+    Treating 0 as "Low" tier instead of "zero supports" is consistent
+    with that data; treating it as a literal count is not.
+    """
+    if support_count_id is None:
+        return None
+    target_entry = next((item for item in support_counts_table if item.get("_rid") == support_count_id), None)
+    return target_entry.get("Id", "Unknown") if target_entry else "Unknown"
+
+
+# Per-tier min/max support counts a skill can actually spawn with, in
+# high-level zones (maps) specifically -- source: poewiki.net's
+# Mercenary page. Lower-level areas cap the maximum lower than this, but
+# that scaling isn't documented with concrete numbers there, and this
+# project only targets max-level (level 83, map-tier) mercenary
+# encounters, so that lower-level case isn't handled here.
+SUPPORT_COUNT_TIER_RANGES = {
+    "None": (0, 0),
+    "Low": (1, 2),
+    "Medium": (2, 3),
+    "High": (3, 5),
+}
+
+
+def resolve_support_count_range(tier: str):
+    """
+    Stub: maps a skill's support-count TIER (see get_support_count_tier)
+    to the (min, max) number of supports it can actually spawn with, per
+    SUPPORT_COUNT_TIER_RANGES. Not yet wired into extract_mercenary_data's
+    output -- supports_by_skills.json currently records the tier name
+    only, not a resolved range, since exposing a range invites treating
+    it as precise when the real number for a given encounter still can't
+    be derived from these tables alone (it's presumably randomized within
+    the tier's range per-spawn, not a fixed value). Kept here as the
+    known, wiki-sourced mapping so a future feature (e.g. flagging an
+    OCR'd support list whose count falls outside its skill's tier range)
+    doesn't have to rediscover it.
+    """
+    return SUPPORT_COUNT_TIER_RANGES.get(tier)
+
+
 def get_support_names_from_id(support_ids: List[int], supports_table: List[Dict[str, Any]]) -> List[str]:
     """
     Transforms support ids into display names (Name + roman-numeral
@@ -69,6 +123,8 @@ def extract_mercenary_data(dat_dir: str, output_dir: str) -> None:
             mercenary_skills_table = json.load(f)
         with open(os.path.join(dat_dir, "mercenarysupports.json"), "r", encoding="utf-8") as f:
             mercenary_supports_table = json.load(f)
+        with open(os.path.join(dat_dir, "mercenarysupportcounts.json"), "r", encoding="utf-8") as f:
+            mercenary_support_counts_table = json.load(f)
     except FileNotFoundError as e:
         print(f"Error: Missing required extracted source data table. Details: {e}")
         return
@@ -125,13 +181,13 @@ def extract_mercenary_data(dat_dir: str, output_dir: str) -> None:
         skill_name = skill.get("Name", "Unknown")
         print(f"processing skill: '{skill_name}'")
         possible_support_ids = skill.get("PossibleSupports", [])
-        support_count = skill.get("SupportCount")
+        support_count_tier = get_support_count_tier(skill.get("SupportCount"), mercenary_support_counts_table)
 
         support_names = get_support_names_from_id(possible_support_ids, mercenary_supports_table)
 
         if skill_name not in supports_by_skill["skills"]:
             supports_by_skill["skills"][skill_name] = {
-                "SupportCount": support_count,
+                "SupportCountTier": support_count_tier,
                 "PossibleSupports": support_names
             }
 
