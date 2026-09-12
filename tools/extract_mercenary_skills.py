@@ -195,12 +195,19 @@ def extract_mercenary_data(dat_dir: str, output_dir: str) -> None:
     mercenary_skill_output_path = os.path.join(output_dir, "skills_by_mercenary.json")
     supports_by_skills_output_path = os.path.join(output_dir, "supports_by_skills.json")
 
+    # newline="\n" on every output write below -- Python's text-mode
+    # open() otherwise translates each '\n' json.dump writes into the
+    # platform default line ending (CRLF on Windows), which is what was
+    # triggering git's CRLF/LF warning on these files. Forcing LF here
+    # keeps the generated files' line endings consistent regardless of
+    # what OS the extraction is run on, rather than relying on git
+    # config/.gitattributes to normalize it after the fact.
     try:
-        with open(mercenary_types_output_path, "w", encoding="utf-8") as out_f:
+        with open(mercenary_types_output_path, "w", encoding="utf-8", newline="\n") as out_f:
             json.dump(mercenary_types, out_f, indent=2, ensure_ascii=False, sort_keys=False)
-        with open(mercenary_skill_output_path, "w", encoding="utf-8") as out_f:
+        with open(mercenary_skill_output_path, "w", encoding="utf-8", newline="\n") as out_f:
             json.dump(mercenary_skills, out_f, indent=2, ensure_ascii=False, sort_keys=False)
-        with open(supports_by_skills_output_path, "w", encoding="utf-8") as out_f:
+        with open(supports_by_skills_output_path, "w", encoding="utf-8", newline="\n") as out_f:
             json.dump(supports_by_skill, out_f, indent=2, ensure_ascii=False, sort_keys=False)
     except OSError as e:
         print(f"Error: Unable to write output files in '{output_dir}'. Details: {e}")
