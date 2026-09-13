@@ -9,6 +9,7 @@ Definitions are organized by domain.
  - 'mercenary_types.json' - Each mercenary type
  - |-'skills_by_mercenary.json' - Each mercenary type's primary, secondary, and utility skills
  - |--'supports_by_skills.json' - Each skill's supports
+ - 'gems_by_mercenary.json' - Each mercenary type's associated Trarthus gem (hand-authored, not part of the extract_mercenary_skills.py pipeline)
 
  Definitions are name-keyed (skill names, gem names, etc) rather than mirroring the game's ID-based relational structure. These files are small(ish) and hand-inspected so name-keys stay.
 

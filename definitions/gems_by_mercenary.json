@@ -1,0 +1,16 @@
+{
+  "note": "Each mercenary can carry its own signature skill gem. This mapping is 1:1 for every mercenary except Blade Ambusher, which has two possible gems (gem is an array there instead of a single string).",
+  "associations": [
+    {"mercenary": "Ripper", "gem": "Chain Hook of Trarthus"},
+    {"mercenary": "Winter Deacon", "gem": "Heavy Strike of Trarthus"},
+    {"mercenary": "Earthshaker", "gem": "Sunder of Trarthus"},
+    {"mercenary": "Bladecaster", "gem": "Bladefall of Trarthus"},
+    {"mercenary": "Flamequiver", "gem": "Blast Rain of Trarthus"},
+    {"mercenary": "Sniper", "gem": "Siege Ballista of Trarthus"},
+    {"mercenary": "Blade Ambusher", "gem": ["Spectral Helix of Trarthus", "Spectral Throw of Trarthus"]},
+    {"mercenary": "Bastion", "gem": "Spectral Shield Throw of Trarthus"},
+    {"mercenary": "Cruel Mistress", "gem": "Dark Bargain of Trarthus"},
+    {"mercenary": "Sanguimancer", "gem": "Storm Call of Trarthus"},
+    {"mercenary": "Flaming Charlatan", "gem": "Wave of Conviction of Trarthus"}
+  ]
+}
