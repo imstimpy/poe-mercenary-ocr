@@ -11,6 +11,8 @@ There are three possible sources for these icons:
  
  Official assets or game-extractions can add portability but requires resolution scaling and/or conceptual comparison. Gems, in particular, receive additional rendering effects (e.g., a gold glow of the gems) making same-different comparisons quite demanding.
 
+ See `../THIRD_PARTY_NOTICES.md` -- these data and icons are Grinding Gear Games' data.
+
 ## In-game screen captures
 
 In-game captures are cropped from screenshots from the running game engine. The universality of these captures is extremely limited!
@@ -55,6 +57,7 @@ assets/
   pending_skills/          (NOT scanned -- not on that list)
     smite.png
   pending_scarabs/         (NOT scanned -- not on that list)
+  pending_supports/        (NOT scanned -- not on that list)
   currency/     (create as needed, then add "currency" to REFERENCE_CATEGORIES)
   scarabs/      (create as needed, then add "scarabs" to REFERENCE_CATEGORIES)
 ```

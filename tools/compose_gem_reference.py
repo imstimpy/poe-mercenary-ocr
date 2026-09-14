@@ -2,34 +2,55 @@
 Composites a raw gem sprite sheet extracted from Path of Exile's own game
 files (via poe-dat-viewer -> baseitemtypes -> itemvisualidentity -> DDS ->
 PNG, see project notes for the exact lookup steps) into a clean reference
-icon for assets/gems/.
+icon. Output is NOT a validated production reference -- see assets/README.md
+and AI_RAMBLINGS.md for why these composites (glow/sparkle-free, cross-domain
+scoring issues) haven't replaced real screen-captured gem references -- so
+it's written to assets/pending_gems/, the same holding area every other
+not-yet-validated extracted asset lives in.
 
 Usage:
     python compose_gem_reference.py <raw_sprite.png> <gem_slug>
 
 Example:
     python compose_gem_reference.py crossbowtotemgem.png siege_ballista_of_trarthus
-    -> writes assets/gems/siege_ballista_of_trarthus.png
+    -> writes assets/pending_gems/siege_ballista_of_trarthus.png
 
-What this assumes about the raw sprite sheet (verified against one real
-extracted asset, Siege Ballista's CrossBowTotemGem.dds/png -- not yet
-confirmed to generalize to all 12 gems, since we've only had one to test
-against):
+What this assumes about the raw sprite sheet (now checked against 3 real
+extracted gems -- Siege Ballista/CrossBowTotemGem, Dark Bargain/
+skeletalchains, Spectral Throw/ghostlythrow):
 
 - The sheet contains exactly two non-transparent "islands" separated by
-  fully transparent gaps: a smaller gold symbol/overlay piece and a
-  larger colored gem base, at different sizes (the overlay is wide and
-  flat, the base is taller) since they're different shapes in the
-  source art, not two views of the same thing.
-- The LEFTMOST island is the overlay (goes on top); the RIGHTMOST is the
-  base (the canvas the overlay gets composited onto), matching the one
-  real file examined. This positional assumption -- not sorting by size
-  or color -- is the part most likely to need revisiting once a second
-  real extracted gem is available to check the pattern actually holds.
+  fully transparent gaps: a gold symbol/overlay piece and a colored gem
+  base, different shapes from the source art, not two views of the same
+  thing. Confirmed across all 3: the LEFTMOST island is the overlay
+  (goes on top); the RIGHTMOST is the base.
 - They combine by centering the overlay on the base -- no other
   alignment offset was needed to closely match the real in-game
   rendering (visually compared against a real capture; see project
-  history) for the one gem this was built against.
+  history) for the one gem (Siege Ballista) this alignment choice was
+  originally validated against.
+- **Corrected assumption**: the base is NOT always the larger piece.
+  Originally assumed (true for Siege Ballista, the only gem tested at
+  the time) and silently wrong for both Dark Bargain and Spectral
+  Throw -- their overlay is taller (and, for Spectral Throw, also
+  wider) than their base. Sizing the output canvas to the base alone
+  made the centering offset go negative in that dimension, which
+  `Image.alpha_composite` doesn't error on -- it silently clips
+  whatever falls outside the canvas. Real detail (parts of the gold
+  filigree/symbol) was being lost off the edges with no warning,
+  confirmed by re-compositing both gems and visually comparing before
+  and after. Fixed: the canvas is now sized to whichever piece is
+  larger in each dimension, with both pieces centered independently
+  within it, so neither can be clipped regardless of which one is
+  bigger.
+
+**Not yet re-verified**: the other gem composites already sitting in
+assets/pending_gems/ (Bladefall, Blast Rain, Chain Hook, Heavy Strike,
+Spectral Helix, Spectral Shield Throw, Storm Call, Sunder, Wave of
+Conviction) were built with the OLD, buggy version of this script and
+their raw sprite sheets are no longer on hand to re-run -- they may have
+the same clipping problem and there's currently no way to check without
+re-extracting each one's raw sprite sheet first.
 
 The output keeps the base's alpha channel (i.e. is still transparent
 outside the gem's own silhouette), which is what makes it usable with
@@ -89,7 +110,7 @@ def _tight_crop(img: Image.Image, x0: int, x1: int) -> Image.Image:
     return img.crop((x0 + cols.min(), rows.min(), x0 + cols.max() + 1, rows.max() + 1))
 
 
-def compose_gem_reference(sprite_path: str, gem_slug: str, output_dir: str = "assets/gems") -> str:
+def compose_gem_reference(sprite_path: str, gem_slug: str, output_dir: str = "assets/pending_gems") -> str:
     sprite = Image.open(sprite_path).convert("RGBA")
     alpha = np.array(sprite)[:, :, 3]
 
@@ -105,10 +126,24 @@ def compose_gem_reference(sprite_path: str, gem_slug: str, output_dir: str = "as
     overlay = _tight_crop(sprite, *overlay_range)
     base = _tight_crop(sprite, *base_range)
 
-    composite = base.copy()
-    ox = (base.width - overlay.width) // 2
-    oy = (base.height - overlay.height) // 2
-    composite.alpha_composite(overlay, (ox, oy))
+    # Canvas sized to whichever piece is larger in each dimension, not just
+    # the base -- the base was assumed to always be the bigger piece (true
+    # for the one gem this script was originally built against, Siege
+    # Ballista), but confirmed FALSE for at least two real gems (Dark
+    # Bargain/skeletalchains, Spectral Throw/ghostlythrow): both have an
+    # overlay taller (and, for Spectral Throw, also wider) than their base.
+    # Sizing the canvas to `base.copy()` alone made the centering offset go
+    # negative in that dimension, which `Image.alpha_composite` doesn't
+    # error on -- it silently clips whatever falls outside the canvas, so
+    # real overlay pixels (the gold filigree/symbol) were being lost off
+    # the top/bottom or left/right edges with no warning. Both pieces are
+    # now centered independently within a canvas that fits the larger of
+    # the two in each dimension, so neither can be clipped.
+    width = max(base.width, overlay.width)
+    height = max(base.height, overlay.height)
+    composite = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    composite.alpha_composite(base, ((width - base.width) // 2, (height - base.height) // 2))
+    composite.alpha_composite(overlay, ((width - overlay.width) // 2, (height - overlay.height) // 2))
 
     out_path = Path(output_dir) / f"{gem_slug}.png"
     out_path.parent.mkdir(parents=True, exist_ok=True)

@@ -19,7 +19,7 @@ Development and functionality can be validated through unit and functional tests
 
 `python ./tests.py`
 
-OCR tests use mss-based captures, stored in `test_data`, as references.
+Image recognition and Image recognition and OCR tests use mss-based captures, stored in `test_data`, as references.
 
 To resolve pending tests, locate the images in the image archives and copy them into the test data. Using any sources other than mss-based captures (e.g., WIN+SHIFT+S, Greenshot, etc) had observed [imbalanced] deviations in RBG composition relating to gamma/brightness.
 
