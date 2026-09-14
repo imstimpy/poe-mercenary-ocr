@@ -23,6 +23,12 @@ OCR tests use mss-based captures, stored in `test_data`, as references.
 
 To resolve pending tests, locate the images in the image archives and copy them into the test data. Using any sources other than mss-based captures (e.g., WIN+SHIFT+S, Greenshot, etc) had observed [imbalanced] deviations in RBG composition relating to gamma/brightness.
 
+## Related tools
+[Mercenary Trade Search](https://pob.codes/tools/mercenaries/)
+[Mercenary Dataset Collector](https://github.com/AdamZ-8113/mercenary-dataset-collector)
+[Perandus Ledger - Build a Mercenary](https://xddbsns.com/mercenary-builder.html)
+[Awakened PoE Trade](https://snosme.github.io/awakened-poe-trade/)
+
 ## Disclosures
 Independent fan-made tool, not affiliated with, authorized, maintained, sponsored, or endorsed by Grinding Gear Games. Contains assets derived from Path of Exile game data owned by Grinding Gear Games.
 
