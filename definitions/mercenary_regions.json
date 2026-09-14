@@ -16,6 +16,11 @@
       "window_relative": {"x0": 0.2269, "y0": 0.0589, "x1": 0.4950, "y1": 0.0941},
       "note": "Left edge deliberately excludes the type-icon badge (verified user-supplied box, calibrated against a Str/Dex mercenary where the icon shape had previously leaked stray OCR characters into the type text)."
     },
+    "level": {
+      "absolute": {"x0": 1255, "y0": 142, "x1": 1406, "y1": 186},
+      "window_relative": {"x0": 0.4800, "y0": 0.0563, "x1": 0.6683, "y1": 0.0950},
+      "note": "The 'Lvl NN' box in the same header row as type_subtype, immediately to its right. Calibrated from a user-supplied CTRL+PRTSC screenshot with the box hand-drawn around it (Lorakna, the Profuse, Lvl 83) -- the drawn rectangle was measured directly (exact-color pixel bounding box), not eyeballed. Position confirmed stable (same absolute box cleanly frames the text with no re-adjustment) across 7 more real CTRL+PRTSC screenshots spanning Lvl 66-83, so this isn't fit to one mercenary's subtype-text width. CAUTION: those calibration screenshots are CTRL+PRTSC captures, not mss -- per this project's own documented capture-method color/border mismatch (see AI_RAMBLINGS.md), they were used ONLY to find and sanity-check this pixel box and are not stored as project test data. The box's real-world reliability under actual mss captures (crop position AND OCR) is unconfirmed until a real mss capture with this region wired in exists."
+    },
     "equipment_rucksack_container": {
       "absolute": {"x0": 907, "y0": 311, "x1": 1629, "y1": 769},
       "window_relative": {"x0": 0.0461, "y0": 0.2049, "x1": 0.9464, "y1": 0.6078}
