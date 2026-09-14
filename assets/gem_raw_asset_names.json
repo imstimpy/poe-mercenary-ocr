@@ -1,0 +1,17 @@
+{
+  "note": "Maps each gems's display name to its raw internal asset name (the .dds/.png filename from the poe-dat-viewer extraction steps in tools/README.md).",
+  "gems": [
+    {"gem": "Chain Hook of Trarthus", "asset": "chainstrikegem"},
+    {"gem": "Heavy Strike of Trarthus", "asset": "heavystrike"},
+    {"gem": "Sunder of Trarthus", "asset": "shockwaveslam"},
+    {"gem": "Bladefall of Trarthus", "asset": "rainofblades"},
+    {"gem": "Blast Rain of Trarthus", "asset": "blastraingem"},
+    {"gem": "Siege Ballista of Trarthus", "asset": "crossbowtotemgem"},
+    {"gem": "Spectral Helix of Trarthus", "asset": "spectralspiralgem"},
+    {"gem": "Spectral Shield Throw of Trarthus", "asset": "thrownshield"},
+    {"gem": "Spectral Throw of Trarthus", "asset": "ghostlythrow"},
+    {"gem": "Dark Bargain of Trarthus", "asset": "skeletalchains"},
+    {"gem": "Storm Call of Trarthus", "asset": "stormcall"},
+    {"gem": "Wave of Conviction of Trarthus", "asset": "purge"}
+  ]
+}

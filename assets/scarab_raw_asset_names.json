@@ -1,0 +1,12 @@
+{
+  "note": "Maps each scarab's display name to its raw internal asset name (the .dds/.png filename from the poe-dat-viewer extraction steps in tools/README.md).",
+  "scarabs": [
+    {"scarab": "Scarab of Adversaries", "asset": "altlesserscarabmisc"},
+    {"scarab": "Scarab of the Dextral", "asset": "altgreaterscarabmisc"},
+    {"scarab": "Scarab of the Wisps", "asset": "greaterscarabmisc1"},
+    {"scarab": "Scarab of the Sinestral", "asset": "greaterscarabmisc2"},
+    {"scarab": "Scarab of Monsterous Lineage", "asset": "lesserscarabmisc"},
+    {"scarab": "Horned Scarab of Bloodlines", "asset": "superscarab1"},
+    {"scarab": "Scarab of Stability", "asset": "tier4scarabmisc.png"}
+  ]
+}

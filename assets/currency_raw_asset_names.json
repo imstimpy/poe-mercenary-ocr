@@ -1,0 +1,11 @@
+{
+  "note": "Maps each currency's display name to its raw internal asset name (the .dds/.png filename from the poe-dat-viewer extraction steps in tools/README.md).",
+  "currencies": [
+    {"currency": "Ancient Orb", "asset": "ancientorb"},
+    {"currency": "Divine Orb", "asset": "currencymodvalues"},
+    {"currency": "Exalted Orb", "asset": "currencyaddmodtorare"},
+    {"currency": "Orb of Scouring", "asset": "currencyconverttonormal"},
+    {"currency": "Orb of Unmaking", "asset": "regretorb"},
+    {"currency": "Regal Orb", "asset": "currencyupgrademagictorare"}
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "note": "Maps each skills's display name to its raw internal asset name (the .dds/.png filename from the poe-dat-viewer extraction steps in tools/README.md).",
+  "skills": [
+    {"skill": "Holy Relic", "asset": "holyrelicskillicon"},
+    {"skill": "Smite", "asset": "smite"},
+    {"skill": "Dominating Blow", "asset": "conversionstrike"},
+    {"skill": "Beacons of Faith", "asset": "houseazadiskill"},
+    {"skill": "Herald of Purity", "asset": "heraldoflight"},
+    {"skill": "Flame Dash", "asset": "flamedash"}
+  ]
+}
