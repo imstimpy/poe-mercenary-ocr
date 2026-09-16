@@ -10,10 +10,27 @@ PoE stores a lot of helpful information in its files. Some data may be stored wi
 3rd party tools are required to open/view/export game content. See [Existing community tools](#existing-community-tools) below.
 
 ## Bespoke
- - `extract_mercenary_skills.py` - Extracts mercenary names, skills, and supports from game files
- - `compose_gem_reference.py` - Assembles the layers of gem extractions into a single gem asset
 
- These bespoke tools extract assets from the game data with and transform these assets into a usable form.
+These bespoke tools extract assets from the game data and transform them into a usable form.
+
+ - `extract_mercenary_skills.py` - Extracts mercenary names, skills, and supports from game files.
+   - Run: `python extract_mercenary_skills.py` (no arguments; run from `tools/`)
+   - Reads: `extracted_dats/`
+   - Writes: `mercenary_jsons/` -- review and move into `../definitions/`
+
+ - `compose_gem_reference.py` - Assembles the layers of a gem extraction into a single gem asset.
+   - Run: `python compose_gem_reference.py <raw_sprite.png> <gem_slug>` (run from the project root)
+   - Writes: `assets/pending_gems/<gem_slug>.png`
+
+ - `harvest_support_icons.py` - Builds labeled support icon references from encounters.
+   - Run: `python harvest_support_icons.py` (no arguments; safe to run from `tools/` or the project root)
+   - Reads: `captures/`, `__captures_*/`, and the hand-maintained `tier_notes.json` / `manual_labels.json` overrides alongside its output
+   - Writes: `assets/harvested_supports/`
+
+ - `export_gem_embedding_model.py` - Builds the gem-presence embedding model. Needs `requirements-dev.txt` installed (not part of normal setup -- see `DEPENDENCIES.md`).
+   - Run: `python export_gem_embedding_model.py` (no arguments; run from `tools/`)
+   - Reads: `assets/gems/`
+   - Writes: `assets/models/`
 
 See `../THIRD_PARTY_NOTICES.md` -- these data and icons are Grinding Gear Games' data.  
 

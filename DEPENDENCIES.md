@@ -34,7 +34,7 @@ pip install -r requirements.txt
 or individually:
 
 ```
-pip install mss pillow keyboard pytesseract numpy scipy
+pip install mss pillow keyboard pytesseract numpy scipy onnxruntime
 ```
 
 | Package | What it's for |
@@ -45,10 +45,28 @@ pip install mss pillow keyboard pytesseract numpy scipy
 | `pytesseract` | Python wrapper that calls the Tesseract engine -- **not** the engine itself, see below |
 | `numpy` | Pixel array math in the OCR preprocessing (glyph isolation) |
 | `scipy` | Connected-component analysis (`scipy.ndimage`) used to separate real text glyphs from decorative UI elements and icons before OCR |
+| `onnxruntime` | Runs the gem-presence embedding model (`assets/models/gem_embedding_resnet18.onnx`) -- inference only, no training/export capability |
 
 `numpy` 2.5.x and `scipy` 1.18.x (the versions `requirements.txt` pulls)
 both publish prebuilt wheels for Python up to 3.14 on Windows -- any recent 3.12+
 install works.
+
+### Regenerating the gem-presence model (not needed for normal use)
+
+`assets/models/gem_embedding_resnet18.onnx` is already built and
+checked in -- most people never need to touch this. It only needs
+regenerating if `assets/gems/` (the reference gem icons) changes.
+Doing that needs a much heavier, separate set of packages
+(`requirements-dev.txt`: `torch`, `torchvision`, `onnx`, `onnxscript` --
+hundreds of MB, versus `onnxruntime`'s ~46MB):
+
+```
+pip install -r requirements-dev.txt
+cd tools
+python export_gem_embedding_model.py
+```
+
+See `tools/README.md` for what it reads/writes.
 
 ## 3. Tesseract OCR engine (NOT a pip package)
 

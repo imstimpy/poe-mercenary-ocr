@@ -6,3 +6,4 @@ numpy>=1.26.0
 scipy>=1.11.0
 pyperclip>=1.8.0
 opencv-python>=5.0.0
+onnxruntime>=1.20.0

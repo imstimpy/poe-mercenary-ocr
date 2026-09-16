@@ -1,0 +1,7 @@
+# Only needed to run tools/export_gem_embedding_model.py (regenerating
+# assets/models/*.onnx) -- not needed to run capture_pipeline.py itself.
+# See requirements.txt for the production dependencies.
+torch>=2.0.0
+torchvision>=0.15.0
+onnx>=1.15.0
+onnxscript>=0.7.0
