@@ -103,8 +103,9 @@ def get_support_names_from_id(support_ids: List[int], supports_table: List[Dict[
 
 def get_support_details(supports_table: List[Dict[str, Any]], support_families_table: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
-    Builds a complete {support Name: {"icon": ..., "family": ...}}
-    lookup directly from mercenarysupports.json.
+    Builds a complete {support Name: {"icon": ..., "family": ...,
+    "tier": ..., "tier_roman": ...}} lookup directly from
+    mercenarysupports.json.
 
     Keyed by the exact `Name` field (tier prefix included where the game
     itself includes one, e.g. "Lesser Cooldown Recovery" / "Cooldown
@@ -112,6 +113,14 @@ def get_support_details(supports_table: List[Dict[str, Any]], support_families_t
     NOT collapsed to one canonical name per family. Strip
     a trailing " I"/" II"/" III" from a PossibleSupports string to get
     the key to look up here.
+
+    `tier`/`tier_roman` come straight from the row's own `Tier` field --
+    NOT re-derived by guessing from a "Lesser "/"Greater " prefix (or its
+    absence) on `Name`, which is a real trap: standalone entries with no
+    Lesser/Mid/Greater trio (every "Gilded X" support, for instance) have
+    NO prefix at all but are NOT tier 2 -- confirmed directly against the
+    raw data, `Gilded Jolt`'s own `Tier` is 3. A "no prefix -> tier 2"
+    heuristic silently mislabels every one of those.
 
     One real Name collision exists in the source data (two different
     _rid rows both named "Gilded Extra Targets", one per skill that
@@ -127,9 +136,12 @@ def get_support_details(supports_table: List[Dict[str, Any]], support_families_t
         icon = os.path.splitext(os.path.basename(icon_path))[0].lower()
         family_id = support.get("SupportFamily")
         family_name = family_id_to_name.get(family_id) if family_id is not None else None
+        tier = support.get("Tier")
         support_details[name] = {
             "icon": icon,
             "family": family_name,
+            "tier": tier,
+            "tier_roman": TIER_TO_ROMAN.get(tier),
         }
     return support_details
 

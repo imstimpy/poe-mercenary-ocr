@@ -27,6 +27,26 @@ These bespoke tools extract assets from the game data and transform them into a 
    - Reads: `captures/`, `__captures_*/`, and the hand-maintained `tier_notes.json` / `manual_labels.json` overrides alongside its output
    - Writes: `assets/harvested_supports/`
 
+ - `generate_support_coverage_report.py` - Regenerates the missing/weak support-icon coverage report. Run after `harvest_support_icons.py`.
+   - Run: `python generate_support_coverage_report.py` (no arguments; run from `tools/`)
+   - Reads: `definitions/supports.json`, `definitions/skills_by_mercenary.json`, `definitions/supports_by_skills.json`, `assets/harvested_supports/manifest.json`
+   - Writes: `assets/support_icon_coverage.md`
+
+ - `match_support_icon.py` - Support-icon classifier accuracy report against real `warrant.txt` ground truth (100% on every real crop on hand). The classifier itself is promoted into `capture_pipeline.py` (`match_support_icon`/`extract_support_names`); this script is now just its validation/regression report.
+   - Run: `python match_support_icon.py` (no arguments; run from the project root)
+   - Reads: `assets/harvested_supports/`, `definitions/supports.json`, `captures/`, `__captures_*/`
+
+ - `export_support_reference_embeddings.py` - Precomputes support-icon reference embeddings for production use. Run after `harvest_support_icons.py`.
+   - Run: `python export_support_reference_embeddings.py` (no arguments; run from the project root)
+   - Reads: `assets/harvested_supports/`
+   - Writes: `assets/models/support_reference_embeddings.json`
+   - Writes: nothing (report to stdout)
+
+ - `generate_support_collision_report.py` - Regenerates the list of ambiguous support icons, split into real same-skill collisions vs. shared-icon-but-different-skills. Run after `definitions/supports.json` or `definitions/supports_by_skills.json` changes.
+   - Run: `python generate_support_collision_report.py` (no arguments; run from `tools/`)
+   - Reads: `definitions/supports.json`, `definitions/supports_by_skills.json`
+   - Writes: `assets/support_icon_collisions.md`
+
  - `export_gem_embedding_model.py` - Builds the gem-presence embedding model. Needs `requirements-dev.txt` installed (not part of normal setup -- see `DEPENDENCIES.md`).
    - Run: `python export_gem_embedding_model.py` (no arguments; run from `tools/`)
    - Reads: `assets/gems/`

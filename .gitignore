@@ -1,6 +1,10 @@
 # Image logs
 *captures*/
 
+# Near-duplicate noise from harvest_support_icons.py -- fully reproducible
+# from captures/, not read by anything (see export_support_reference_embeddings.py)
+assets/harvested_supports/variants/
+
 # Text logs
 logs/
 

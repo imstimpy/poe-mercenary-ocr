@@ -3,1063 +3,1593 @@
   "supports": {
     "Multiple Projectiles": {
       "icon": "lessermultipleprojectiles",
-      "family": "MultipleProjectiles"
+      "family": "MultipleProjectiles",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Greater Multiple Projectiles": {
       "icon": "greatermultipleprojectiles",
-      "family": "MultipleProjectiles"
+      "family": "MultipleProjectiles",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Caustic Conversion": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Exposure on Hit": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Melee Splash": {
       "icon": "splash",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Extra Targets": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Chain": {
       "icon": "chain",
-      "family": "AdditionalChains"
+      "family": "AdditionalChains",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Chain": {
       "icon": "chain",
-      "family": "AdditionalChains"
+      "family": "AdditionalChains",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Gilded Shield Damage": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Consecration": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Volleys": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Spell Cascade": {
       "icon": "spellcascade",
-      "family": "SpellCascade"
+      "family": "SpellCascade",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Spell Cascade": {
       "icon": "spellcascade",
-      "family": "SpellCascade"
+      "family": "SpellCascade",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Impale Extraction": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Additional Pods": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Faster Cyclone": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Relic Recovery": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Maximum Storms": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Maximum Spikes": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Greater Sacred Wisps": {
       "icon": "wandwispsupport",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Fortification": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Heft": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Greater Fork": {
       "icon": "fork",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Chance to Bleed": {
       "icon": "chancetobleed",
-      "family": "Bleed"
+      "family": "Bleed",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Chance to Bleed": {
       "icon": "chancetobleed",
-      "family": "Bleed"
+      "family": "Bleed",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Chance to Bleed": {
       "icon": "chancetobleed",
-      "family": "Bleed"
+      "family": "Bleed",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Added Chaos": {
       "icon": "addedchaosdamage",
-      "family": "AddedChaos"
+      "family": "AddedChaos",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Added Chaos": {
       "icon": "addedchaosdamage",
-      "family": "AddedChaos"
+      "family": "AddedChaos",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Added Chaos": {
       "icon": "addedchaosdamage",
-      "family": "AddedChaos"
+      "family": "AddedChaos",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Onslaught on Cry": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Raging Cry": {
       "icon": "mercsilverstrsupportgem",
-      "family": "RageWarcry"
+      "family": "RageWarcry",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Raging Cry": {
       "icon": "mercsilverstrsupportgem",
-      "family": "RageWarcry"
+      "family": "RageWarcry",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Raging Cry": {
       "icon": "mercsilverstrsupportgem",
-      "family": "RageWarcry"
+      "family": "RageWarcry",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Chance to Poison": {
       "icon": "poison",
-      "family": "PoisonChance"
+      "family": "PoisonChance",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Chance to Poison": {
       "icon": "poison",
-      "family": "PoisonChance"
+      "family": "PoisonChance",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Chance to Poison": {
       "icon": "poison",
-      "family": "PoisonChance"
+      "family": "PoisonChance",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Malediction": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Faster Casting": {
       "icon": "fastercast",
-      "family": "CastSpeed"
+      "family": "CastSpeed",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Faster Casting": {
       "icon": "fastercast",
-      "family": "CastSpeed"
+      "family": "CastSpeed",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Faster Casting": {
       "icon": "fastercast",
-      "family": "CastSpeed"
+      "family": "CastSpeed",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Knockback": {
       "icon": "knockback",
-      "family": null
+      "family": null,
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Gilded Additional Pulses": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Greater Lucky Lightning Damage": {
       "icon": "mercsilverintsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Generosity": {
       "icon": "generositysupport",
-      "family": "Generosity"
+      "family": "Generosity",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Generosity": {
       "icon": "generositysupport",
-      "family": "Generosity"
+      "family": "Generosity",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Generosity": {
       "icon": "generositysupport",
-      "family": "Generosity"
+      "family": "Generosity",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Greater Fortify": {
       "icon": "fortifygem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Empowered Link": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Icecrash Radius": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser More Duration": {
       "icon": "increasedduration",
-      "family": "Duration"
+      "family": "Duration",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "More Duration": {
       "icon": "increasedduration",
-      "family": "Duration"
+      "family": "Duration",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater More Duration": {
       "icon": "increasedduration",
-      "family": "Duration"
+      "family": "Duration",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Less Duration": {
       "icon": "reduceduration",
-      "family": "Duration"
+      "family": "Duration",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Less Duration": {
       "icon": "reduceduration",
-      "family": "Duration"
+      "family": "Duration",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Less Duration": {
       "icon": "reduceduration",
-      "family": "Duration"
+      "family": "Duration",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Swift Affliction": {
       "icon": "supportrapiddecaygem",
-      "family": "DOTReducedDuration"
+      "family": "DOTReducedDuration",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Swift Affliction": {
       "icon": "supportrapiddecaygem",
-      "family": "DOTReducedDuration"
+      "family": "DOTReducedDuration",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Swift Affliction": {
       "icon": "supportrapiddecaygem",
-      "family": "DOTReducedDuration"
+      "family": "DOTReducedDuration",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Greater Curse Effect": {
       "icon": "mercsilverintsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Hypothermia": {
       "icon": "damageagainstchilled",
-      "family": "Hypothermia"
+      "family": "Hypothermia",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Hypothermia": {
       "icon": "damageagainstchilled",
-      "family": "Hypothermia"
+      "family": "Hypothermia",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Hypothermia": {
       "icon": "damageagainstchilled",
-      "family": "Hypothermia"
+      "family": "Hypothermia",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Strike Distance": {
       "icon": "mercsilverstrsupportgem",
-      "family": "StrikeRange"
+      "family": "StrikeRange",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Strike Distance": {
       "icon": "mercsilverstrsupportgem",
-      "family": "StrikeRange"
+      "family": "StrikeRange",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Strike Distance": {
       "icon": "mercsilverstrsupportgem",
-      "family": "StrikeRange"
+      "family": "StrikeRange",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Cooldown Recovery": {
       "icon": "mercsilverintsupportgem",
-      "family": "Cooldown"
+      "family": "Cooldown",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Cooldown Recovery": {
       "icon": "mercsilverintsupportgem",
-      "family": "Cooldown"
+      "family": "Cooldown",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Cooldown Recovery": {
       "icon": "mercsilverintsupportgem",
-      "family": "Cooldown"
+      "family": "Cooldown",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Cold Penetration": {
       "icon": "coldpenetration",
-      "family": "ColdPenetration"
+      "family": "ColdPenetration",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Cold Penetration": {
       "icon": "coldpenetration",
-      "family": "ColdPenetration"
+      "family": "ColdPenetration",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Cold Penetration": {
       "icon": "coldpenetration",
-      "family": "ColdPenetration"
+      "family": "ColdPenetration",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Lightning Penetration": {
       "icon": "lightningpenetration",
-      "family": "LightPenetration"
+      "family": "LightPenetration",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Lightning Penetration": {
       "icon": "lightningpenetration",
-      "family": "LightPenetration"
+      "family": "LightPenetration",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Lightning Penetration": {
       "icon": "lightningpenetration",
-      "family": "LightPenetration"
+      "family": "LightPenetration",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Arrow Nova": {
       "icon": "greenrainsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Maximum Explosions": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Additional Fissures": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Fire Penetration": {
       "icon": "firepenetration",
-      "family": "FirePenetration"
+      "family": "FirePenetration",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Fire Penetration": {
       "icon": "firepenetration",
-      "family": "FirePenetration"
+      "family": "FirePenetration",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Fire Penetration": {
       "icon": "firepenetration",
-      "family": "FirePenetration"
+      "family": "FirePenetration",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Ailment Effect": {
       "icon": "unboundailments",
-      "family": "NonDamagingAilmentEffect"
+      "family": "NonDamagingAilmentEffect",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Ailment Effect": {
       "icon": "unboundailments",
-      "family": "NonDamagingAilmentEffect"
+      "family": "NonDamagingAilmentEffect",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Ailment Effect": {
       "icon": "unboundailments",
-      "family": "NonDamagingAilmentEffect"
+      "family": "NonDamagingAilmentEffect",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Added Cold": {
       "icon": "addedcolddamage",
-      "family": "AddedCold"
+      "family": "AddedCold",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Added Cold": {
       "icon": "addedcolddamage",
-      "family": "AddedCold"
+      "family": "AddedCold",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Added Cold": {
       "icon": "addedcolddamage",
-      "family": "AddedCold"
+      "family": "AddedCold",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Added Lightning": {
       "icon": "addedlightningdamage",
-      "family": "AddedLightning"
+      "family": "AddedLightning",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Added Lightning": {
       "icon": "addedlightningdamage",
-      "family": "AddedLightning"
+      "family": "AddedLightning",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Added Lightning": {
       "icon": "addedlightningdamage",
-      "family": "AddedLightning"
+      "family": "AddedLightning",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Elemental Weakness on Hit": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Elemental Damage with Attacks": {
       "icon": "weaponelementaldamage",
-      "family": "WED"
+      "family": "WED",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Elemental Damage with Attacks": {
       "icon": "weaponelementaldamage",
-      "family": "WED"
+      "family": "WED",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Elemental Damage with Attacks": {
       "icon": "weaponelementaldamage",
-      "family": "WED"
+      "family": "WED",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Shock Chance": {
       "icon": "mercsilverintsupportgem",
-      "family": "ShockChance"
+      "family": "ShockChance",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Shock Chance": {
       "icon": "mercsilverintsupportgem",
-      "family": "ShockChance"
+      "family": "ShockChance",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Shock Chance": {
       "icon": "mercsilverintsupportgem",
-      "family": "ShockChance"
+      "family": "ShockChance",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Ignite Chance": {
       "icon": "chancetoignite",
-      "family": "IgniteChance"
+      "family": "IgniteChance",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Ignite Chance": {
       "icon": "chancetoignite",
-      "family": "IgniteChance"
+      "family": "IgniteChance",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Ignite Chance": {
       "icon": "chancetoignite",
-      "family": "IgniteChance"
+      "family": "IgniteChance",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Freeze Chance": {
       "icon": "mercsilverdexintsupportgem",
-      "family": "FreezeChance"
+      "family": "FreezeChance",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Freeze Chance": {
       "icon": "mercsilverdexintsupportgem",
-      "family": "FreezeChance"
+      "family": "FreezeChance",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Freeze Chance": {
       "icon": "mercsilverdexintsupportgem",
-      "family": "FreezeChance"
+      "family": "FreezeChance",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Brittle Chance": {
       "icon": "mercsilverdexintsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Ailment Damage": {
       "icon": "deadlyailments",
-      "family": "AilmentDamage"
+      "family": "AilmentDamage",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Ailment Damage": {
       "icon": "deadlyailments",
-      "family": "AilmentDamage"
+      "family": "AilmentDamage",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Ailment Damage": {
       "icon": "deadlyailments",
-      "family": "AilmentDamage"
+      "family": "AilmentDamage",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Trauma Duration": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Astral Totem": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Ensnare Effect": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Maim": {
       "icon": "maim",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Impale Chance": {
       "icon": "impale",
-      "family": "ImpaleChance"
+      "family": "ImpaleChance",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Impale Chance": {
       "icon": "impale",
-      "family": "ImpaleChance"
+      "family": "ImpaleChance",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Impale Chance": {
       "icon": "impale",
-      "family": "ImpaleChance"
+      "family": "ImpaleChance",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Mirage Archer": {
       "icon": "miragearcher",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Multiple Totems": {
       "icon": "multipletotems",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Secondary Shots": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Rage on Hit": {
       "icon": "ragesupport",
-      "family": "RageOnHit"
+      "family": "RageOnHit",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Rage on Hit": {
       "icon": "ragesupport",
-      "family": "RageOnHit"
+      "family": "RageOnHit",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Rage on Hit": {
       "icon": "ragesupport",
-      "family": "RageOnHit"
+      "family": "RageOnHit",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Cull": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Faster Attacks": {
       "icon": "fasterattacks",
-      "family": "AttackSpeed"
+      "family": "AttackSpeed",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Faster Attacks": {
       "icon": "fasterattacks",
-      "family": "AttackSpeed"
+      "family": "AttackSpeed",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Faster Attacks": {
       "icon": "fasterattacks",
-      "family": "AttackSpeed"
+      "family": "AttackSpeed",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Concentrated Effect": {
       "icon": "concentratedaoe",
-      "family": "ConcEffect"
+      "family": "ConcEffect",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Concentrated Effect": {
       "icon": "concentratedaoe",
-      "family": "ConcEffect"
+      "family": "ConcEffect",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Concentrated Effect": {
       "icon": "concentratedaoe",
-      "family": "ConcEffect"
+      "family": "ConcEffect",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser DoT Multiplier": {
       "icon": "mercsilverintsupportgem",
-      "family": "DotMulti"
+      "family": "DotMulti",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "DoT Multiplier": {
       "icon": "mercsilverintsupportgem",
-      "family": "DotMulti"
+      "family": "DotMulti",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater DoT Multiplier": {
       "icon": "mercsilverintsupportgem",
-      "family": "DotMulti"
+      "family": "DotMulti",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Ironwood": {
       "icon": "mercsilverstrintsupportgem",
-      "family": "TotemDefences"
+      "family": "TotemDefences",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Ironwood": {
       "icon": "mercsilverstrintsupportgem",
-      "family": "TotemDefences"
+      "family": "TotemDefences",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Ironwood": {
       "icon": "mercsilverstrintsupportgem",
-      "family": "TotemDefences"
+      "family": "TotemDefences",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Hinder Duration": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Additional Duration": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Area per Projectile": {
       "icon": "mercgoldsupportgem",
-      "family": "IncreaseAreaOfEffect"
+      "family": "IncreaseAreaOfEffect",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Beam Width": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Physical as Extra": {
       "icon": "mercsilverstrintsupportgem",
-      "family": "PhysGainAs"
+      "family": "PhysGainAs",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Physical as Extra": {
       "icon": "mercsilverstrintsupportgem",
-      "family": "PhysGainAs"
+      "family": "PhysGainAs",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Physical as Extra": {
       "icon": "mercsilverstrintsupportgem",
-      "family": "PhysGainAs"
+      "family": "PhysGainAs",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Infused Channelling": {
       "icon": "stormbarrier",
-      "family": "ChannelSkillDamageReduction"
+      "family": "ChannelSkillDamageReduction",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Infused Channelling": {
       "icon": "stormbarrier",
-      "family": "ChannelSkillDamageReduction"
+      "family": "ChannelSkillDamageReduction",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Infused Channelling": {
       "icon": "stormbarrier",
-      "family": "ChannelSkillDamageReduction"
+      "family": "ChannelSkillDamageReduction",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Return": {
       "icon": "returnprojectiles",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Wither on Hit": {
       "icon": "withergemsupport",
-      "family": "WitherOnHit"
+      "family": "WitherOnHit",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Wither on Hit": {
       "icon": "withergemsupport",
-      "family": "WitherOnHit"
+      "family": "WitherOnHit",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Wither on Hit": {
       "icon": "withergemsupport",
-      "family": "WitherOnHit"
+      "family": "WitherOnHit",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Sphere Frequency": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Maximum Shock Effect": {
       "icon": "mercsilverintsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Critical Chance": {
       "icon": "increasedcriticalstrikes",
-      "family": "CritChance"
+      "family": "CritChance",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Critical Chance": {
       "icon": "increasedcriticalstrikes",
-      "family": "CritChance"
+      "family": "CritChance",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Critical Chance": {
       "icon": "increasedcriticalstrikes",
-      "family": "CritChance"
+      "family": "CritChance",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Slower Projectiles": {
       "icon": "slowerprojectiles",
-      "family": "ProjectileSpeed"
+      "family": "ProjectileSpeed",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Slower Projectiles": {
       "icon": "slowerprojectiles",
-      "family": "ProjectileSpeed"
+      "family": "ProjectileSpeed",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Slower Projectiles": {
       "icon": "slowerprojectiles",
-      "family": "ProjectileSpeed"
+      "family": "ProjectileSpeed",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Faster Projectiles": {
       "icon": "fasterprojectiles",
-      "family": "ProjectileSpeed"
+      "family": "ProjectileSpeed",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Faster Projectiles": {
       "icon": "fasterprojectiles",
-      "family": "ProjectileSpeed"
+      "family": "ProjectileSpeed",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Faster Projectiles": {
       "icon": "fasterprojectiles",
-      "family": "ProjectileSpeed"
+      "family": "ProjectileSpeed",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Physical as Extra Chaos": {
       "icon": "mercsilverdexintsupportgem",
-      "family": "PhysGainAs"
+      "family": "PhysGainAs",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Physical as Extra Chaos": {
       "icon": "mercsilverdexintsupportgem",
-      "family": "PhysGainAs"
+      "family": "PhysGainAs",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Second Wind": {
       "icon": "secondwindsupport",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Additional Leech": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Wither Stacks": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Maximum Stages": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Damage from Life": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Brutality": {
       "icon": "brutality",
-      "family": "Brutality"
+      "family": "Brutality",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Brutality": {
       "icon": "brutality",
-      "family": "Brutality"
+      "family": "Brutality",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Brutality": {
       "icon": "brutality",
-      "family": "Brutality"
+      "family": "Brutality",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Clone Speed": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Elemental Focus": {
       "icon": "elementalfocus",
-      "family": "EleFocus"
+      "family": "EleFocus",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Elemental Focus": {
       "icon": "elementalfocus",
-      "family": "EleFocus"
+      "family": "EleFocus",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Elemental Focus": {
       "icon": "elementalfocus",
-      "family": "EleFocus"
+      "family": "EleFocus",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Pierce": {
       "icon": "pierce",
-      "family": "Pierce"
+      "family": "Pierce",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Pierce": {
       "icon": "pierce",
-      "family": "Pierce"
+      "family": "Pierce",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Pierce": {
       "icon": "pierce",
-      "family": "Pierce"
+      "family": "Pierce",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Critical Damage": {
       "icon": "increasedcriticaldamage",
-      "family": "CritDamage"
+      "family": "CritDamage",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Critical Damage": {
       "icon": "increasedcriticaldamage",
-      "family": "CritDamage"
+      "family": "CritDamage",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Critical Damage": {
       "icon": "increasedcriticaldamage",
-      "family": "CritDamage"
+      "family": "CritDamage",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Minion Damage": {
       "icon": "miniondamage",
-      "family": "MinionDamage"
+      "family": "MinionDamage",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Minion Damage": {
       "icon": "miniondamage",
-      "family": "MinionDamage"
+      "family": "MinionDamage",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Minion Damage": {
       "icon": "miniondamage",
-      "family": "MinionDamage"
+      "family": "MinionDamage",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Warcry Speed": {
       "icon": "urgentorderssupport",
-      "family": "WarcrySpeed"
+      "family": "WarcrySpeed",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Warcry Speed": {
       "icon": "urgentorderssupport",
-      "family": "WarcrySpeed"
+      "family": "WarcrySpeed",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Warcry Speed": {
       "icon": "urgentorderssupport",
-      "family": "WarcrySpeed"
+      "family": "WarcrySpeed",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Chaos Penetration": {
       "icon": "mercsilverintsupportgem",
-      "family": "ChaosPen"
+      "family": "ChaosPen",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Chaos Penetration": {
       "icon": "mercsilverintsupportgem",
-      "family": "ChaosPen"
+      "family": "ChaosPen",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Chaos Penetration": {
       "icon": "mercsilverintsupportgem",
-      "family": "ChaosPen"
+      "family": "ChaosPen",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Cascade Count": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Voltaxic Conversion": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Minion Life": {
       "icon": "miniondamage",
-      "family": "MinionLife"
+      "family": "MinionLife",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Minion Life": {
       "icon": "miniondamage",
-      "family": "MinionLife"
+      "family": "MinionLife",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Minion Life": {
       "icon": "miniondamage",
-      "family": "MinionLife"
+      "family": "MinionLife",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Multistrike": {
       "icon": "multipleattacks",
-      "family": "Multistrike"
+      "family": "Multistrike",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Multistrike": {
       "icon": "multipleattacks",
-      "family": "Multistrike"
+      "family": "Multistrike",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Added Fire": {
       "icon": "addedfiredamage",
-      "family": "AddedFire"
+      "family": "AddedFire",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Added Fire": {
       "icon": "addedfiredamage",
-      "family": "AddedFire"
+      "family": "AddedFire",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Added Fire": {
       "icon": "addedfiredamage",
-      "family": "AddedFire"
+      "family": "AddedFire",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Melee Physical Damage": {
       "icon": "increasedphysicaldamage",
-      "family": "MeleePhys"
+      "family": "MeleePhys",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Melee Physical Damage": {
       "icon": "increasedphysicaldamage",
-      "family": "MeleePhys"
+      "family": "MeleePhys",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Melee Physical Damage": {
       "icon": "increasedphysicaldamage",
-      "family": "MeleePhys"
+      "family": "MeleePhys",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Combustion": {
       "icon": "chancetoignite",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Minion Caustic Death": {
       "icon": "mercsilverintsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Multiple Traps": {
       "icon": "multitrap",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Arcane Traps": {
       "icon": "mercsilverdexintsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Leech": {
       "icon": "lifeleech",
-      "family": null
+      "family": null,
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Leech": {
       "icon": "lifeleech",
-      "family": null
+      "family": null,
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Leech": {
       "icon": "lifeleech",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Throwing Speed": {
       "icon": "mercsilverdexintsupportgem",
-      "family": "TrapThrowSpeed"
+      "family": "TrapThrowSpeed",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Throwing Speed": {
       "icon": "mercsilverdexintsupportgem",
-      "family": "TrapThrowSpeed"
+      "family": "TrapThrowSpeed",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Throwing Speed": {
       "icon": "mercsilverdexintsupportgem",
-      "family": "TrapThrowSpeed"
+      "family": "TrapThrowSpeed",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Trap and Mine Damage": {
       "icon": "trapandminedamage",
-      "family": "TrapMineDamage"
+      "family": "TrapMineDamage",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Trap and Mine Damage": {
       "icon": "trapandminedamage",
-      "family": "TrapMineDamage"
+      "family": "TrapMineDamage",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Trap and Mine Damage": {
       "icon": "trapandminedamage",
-      "family": "TrapMineDamage"
+      "family": "TrapMineDamage",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Charged Traps": {
       "icon": "powerfrenzycharge",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Trigger Radius": {
       "icon": "mercsilverdexintsupportgem",
-      "family": null
+      "family": null,
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Trigger Radius": {
       "icon": "mercsilverdexintsupportgem",
-      "family": null
+      "family": null,
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Trigger Radius": {
       "icon": "mercsilverdexintsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Purified Ground": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Mitigation Ignore": {
       "icon": "mercsilverstrdexsupportgem",
-      "family": "IgnorePhysMit"
+      "family": "IgnorePhysMit",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Mitigation Ignore": {
       "icon": "mercsilverstrdexsupportgem",
-      "family": "IgnorePhysMit"
+      "family": "IgnorePhysMit",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Mitigation Ignore": {
       "icon": "mercsilverstrdexsupportgem",
-      "family": "IgnorePhysMit"
+      "family": "IgnorePhysMit",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Ash": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Stun Duration": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Frenzy": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Increased Angle": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Physical Damage Reduction": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Fist of War": {
       "icon": "fistofwargem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Power Charge on Critical Strike": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Crush": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Pulverise": {
       "icon": "pulverize",
-      "family": "Pulverise"
+      "family": "Pulverise",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Pulverise": {
       "icon": "pulverize",
-      "family": "Pulverise"
+      "family": "Pulverise",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Pulverise": {
       "icon": "pulverize",
-      "family": "Pulverise"
+      "family": "Pulverise",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Increased Area of Effect": {
       "icon": "increasedaoe",
-      "family": "IncreaseAreaOfEffect"
+      "family": "IncreaseAreaOfEffect",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Increased Area of Effect": {
       "icon": "increasedaoe",
-      "family": "IncreaseAreaOfEffect"
+      "family": "IncreaseAreaOfEffect",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Area of Effect": {
       "icon": "increasedaoe",
-      "family": "IncreaseAreaOfEffect"
+      "family": "IncreaseAreaOfEffect",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Lesser Excommunicate": {
       "icon": "excommunicate",
-      "family": "Excommunicate"
+      "family": "Excommunicate",
+      "tier": 1,
+      "tier_roman": "I"
     },
     "Excommunicate": {
       "icon": "excommunicate",
-      "family": "Excommunicate"
+      "family": "Excommunicate",
+      "tier": 2,
+      "tier_roman": "II"
     },
     "Greater Excommunicate": {
       "icon": "excommunicate",
-      "family": "Excommunicate"
+      "family": "Excommunicate",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Hallow": {
       "icon": "hallowingflame",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Nova": {
       "icon": "mercgoldsupportgem",
-      "family": "MultipleProjectiles"
+      "family": "MultipleProjectiles",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Jolt": {
       "icon": "mercgoldsupportgem",
-      "family": "CritChance"
+      "family": "CritChance",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Voltage": {
       "icon": "mercgoldsupportgem",
-      "family": "CritChance"
+      "family": "CritChance",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Chain Distance": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Inhibitor": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Freezer Burn": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Archers": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Electrocuting": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Scorch Chance": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Searing Agony": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Devotion": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Hopelessness": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Reactor": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Conflagrant": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Divine Shield": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Snaking": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Blasting": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Pierce": {
       "icon": "mercgoldsupportgem",
-      "family": "Pierce"
+      "family": "Pierce",
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Uncertainty": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Lumbering Dead": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Grasp": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Totemic Onslaught": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Scattershot": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Bitterwound": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Molten Eruption": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Inversion": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     },
     "Gilded Extra Armaments": {
       "icon": "mercgoldsupportgem",
-      "family": null
+      "family": null,
+      "tier": 3,
+      "tier_roman": "III"
     }
   }
 }

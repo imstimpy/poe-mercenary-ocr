@@ -50,7 +50,25 @@
     },
     "supports": {
       "absolute": {"x0": 1273, "y0": 779, "x1": 1633, "y1": 1152},
-      "window_relative": {"x0": 0.5025, "y0": 0.6166, "x1": 0.9514, "y1": 0.9446}
+      "window_relative": {"x0": 0.5025, "y0": 0.6166, "x1": 0.9514, "y1": 0.9446},
+      "grid": {
+        "note": "Fixed 6-row x 5-column icon slot grid inside the supports panel, measured directly from real captures rather than eyeballed. Row/column pixel positions are IDENTICAL across every real capture checked (57 different real 5-icon rows across many different captures/mercenaries all produced byte-identical column boundaries; the 6 row-divider positions were likewise identical, modulo a few false-positive detections from icon content near a boundary, across every capture sampled). Rows correspond 1:1 to the same 6 slots as the `skills` region, in the same top-to-bottom order (row 0 = first/Primary skill slot, etc.) -- a mercenary with fewer real skills just leaves the extra rows blank, same panel size regardless (`supports.png` is always exactly 356x369px post-crop). Columns fill left-to-right starting at 0; a skill with fewer than 5 real supports leaves the remaining columns on its row blank. Absolute values here are RAW (pre-`capture_pipeline.py` INSET), same convention as every other region in this file -- `columns[c]` gives that column's {x0,x1} and `rows[r]` gives that row's {y0,y1} (already trimmed a few px in from the row's divider lines on both sides, tight around the actual icon+tier-badge content, not the full 58px row band) -- combine `columns[c]` x with `rows[r]` y to get one cell's absolute box. A cell being blank (no support in that slot) can't be known from `definitions/` data alone -- an equipped support count varies per real encounter within its skill's `SupportCountTier` range -- so occupancy has to be checked against the actual pixels (e.g. compare a cell's brightness/variance to a known-blank cell) once this grid is wired into capture code, not assumed from data.",
+        "columns": [
+          {"x0": 1276, "x1": 1325},
+          {"x0": 1334, "x1": 1383},
+          {"x0": 1393, "x1": 1442},
+          {"x0": 1451, "x1": 1500},
+          {"x0": 1510, "x1": 1559}
+        ],
+        "rows": [
+          {"y0": 798, "y1": 845},
+          {"y0": 856, "y1": 903},
+          {"y0": 914, "y1": 961},
+          {"y0": 972, "y1": 1019},
+          {"y0": 1030, "y1": 1077},
+          {"y0": 1088, "y1": 1135}
+        ]
+      }
     }
   }
 }
