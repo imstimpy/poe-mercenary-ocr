@@ -66,6 +66,27 @@ cd tools
 python export_gem_embedding_model.py
 ```
 
+If re-running on top of an existing `assets/models/gem_embedding_resnet18.onnx*`,
+delete that `.onnx`/`.onnx.data` pair first -- the exporter can fail
+with `OSError: [Errno 22] Invalid argument` trying to overwrite the
+`.onnx.data` file in place on Windows.
+
+See `tools/README.md` for what it reads/writes.
+
+### Regenerating support-icon references (not needed for normal use)
+
+`assets/models/support_reference_embeddings.json` is already built and
+checked in, same as the gem model above. It only needs regenerating
+after `assets/harvested_supports/` changes (i.e. after re-running
+`tools/harvest_support_icons.py` against new captures). Unlike the gem
+model, this step only needs `onnxruntime` -- no `torch` install
+required, since it reuses the already-exported gem embedding model
+rather than building a new one:
+
+```
+python tools/export_support_reference_embeddings.py
+```
+
 See `tools/README.md` for what it reads/writes.
 
 ## 3. Tesseract OCR engine (NOT a pip package)

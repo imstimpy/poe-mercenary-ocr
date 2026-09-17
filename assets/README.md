@@ -87,27 +87,33 @@ display name to this convention rather than typing it by hand:
 ## Known limitations
 
 - **Machine-specific calibration** Screen-captured references are calibrated to the resolution, UI scale, and graphics settings of the machine that captured them. These regions are defined in `definitions/mercenary_regions.json`. Portable options have been discussed but not yet implemented; see `AI_RAMBLINGS.md` for the reasoning.
-- **Unknown Blade Ambusher gems** Blade Ambusher is the only mercenary that can have 1 of 2 different gems; all others are 1:1. Due to limitations in the gem differentiation, Spectral Helix and Spectral Throw cannot be disambiguated. The pipeline reports this case as `"Unknown (Blade Ambusher)"` rather than guessing. See `AI_RAMBLINGS.md` for the investigation of this limitation.
+- **Blade Ambusher gems** Blade Ambusher is the only mercenary that can have 1 of 2 different gems; all others are 1:1. Spectral Helix and Spectral Throw are disambiguated via embedding-based image matching (`disambiguate_blade_ambusher_gem()`); an unresolved reading still falls back to `"Unknown (Blade Ambusher)"` rather than guessing. See `AI_RAMBLINGS.md` for the investigation.
  
 ## What's actually live
 
 Live:
  - Gems
+ - Supports
 
 Not Live:
  - Currency
  - Scarabs
  - Skills
- - Supports
  - Uniques
 
 ### Gems
 
-Gem detection circumvents the difficulties of positive, unique gem differentiation by combining a gem presence check with a mercenary-type lookup: a mercenary's rucksack can only contain its own signature gem. This resolves 10 of 12 gems with no image-matching risk at all with the Blade Ambusher limitation noted above.
+Gem detection circumvents the difficulties of positive, unique gem differentiation by combining a gem presence check with a mercenary-type lookup: a mercenary's rucksack can only contain its own signature gem. This resolves 10 of 12 gems with no image-matching risk at all; the remaining 2 (both Blade Ambusher's) are resolved via the embedding-based disambiguation noted above.
 
 ### Skills and supports
 
-Not implemented. Signs point to OCR as a definitive solution for skill identification so skill assets may never be used. Supports, on the other hand, need more investigation.
+Skills are identified using OCR, rather than by using image recognition.
+
+Supports are identified via image matching against a reference catalog. Some supports share the same icon, resulting in a genuinely ambiguous identification.
+
+#### Ambiguous support icons
+
+Some supports use the exact same icon+tier. Most of the time this doesn't matter since the same icon will appear in different skills. In a small selection of skills two or more different supports may use the same icon+tier, however. When this occurs there is genuinely no way to resolve the ambiguity through image recognition (e.g. Minion Damage / Minion Life). `assets/support_icon_collisions.md` lists both: every icon+tier collision, and the subset that actually collides within one skill.
 
 ### Currency and scarabs
 

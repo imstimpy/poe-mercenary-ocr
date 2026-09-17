@@ -11,7 +11,7 @@ Definitions are organized by domain.
  - 'mercenary_types.json' - Each mercenary type
  - |-'skills_by_mercenary.json' - Each mercenary type's primary, secondary, and utility skills
  - |--'supports_by_skills.json' - Each skill's supports
- - |---'supports.json' - Each support's own icon and its support family
+ - |---'supports.json' - Each support's own icon, support family, and real tier
  - 'gems_by_mercenary.json' - Each mercenary type's associated Trarthus gem (hand-authored, not part of the extract_mercenary_skills.py pipeline)
  - 'mercenary_regions.json' - The fixed pixel positions of each mercenary UI element.
 

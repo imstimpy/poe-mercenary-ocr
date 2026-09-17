@@ -14,6 +14,17 @@ To capture mercenary data:
 
 `python ./capture_pipeline.py`
 
+### Outputs
+An encounter is captured in multiple places:
+ - In a `captures` folder, made unique by a timestamp. Each encounter stores images of the mercenary UI (name, equipment, skills, warrant, etc).
+ - In a `logs` folder, stored into a tsv. Each encounter stores the timestamp and details of the encounter (name, infamy, gems, map) which can be imported into a spreadsheet.
+ - In the global clipboard, as a means to paste into a spreadsheet.
+
+#### Warrants
+A mercenary warrant is generated from the mercenary UI. This output is intended to exactly match* a CTRL+C of a warrant accessed by a "Rematch".
+
+'* In limited cases it is possible to have an icon+tier collision (two or more different supports share the same icon). Instead of one skill a warrant will have both ("X or Y"). See [assets/README.md](assets/README.md#ambiguous-support-icons).
+
 ## Tests
 Development and functionality can be validated through unit and functional tests. Coverage is so-so overall and tends to be better around difficult or failing areas.
 
