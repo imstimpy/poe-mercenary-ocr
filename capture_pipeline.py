@@ -27,6 +27,7 @@ import re
 import shutil
 import threading
 import time
+from collections import Counter
 from datetime import datetime
 
 import numpy as np
@@ -36,6 +37,7 @@ import mss
 from PIL import Image, ImageOps
 import pytesseract
 import keyboard  # global hotkey listener
+import onnxruntime as ort  # gem-presence embedding model -- see is_gem_present's docstring
 
 try:
     import pyperclip
@@ -45,6 +47,7 @@ except ImportError:
 
 CONFIG_PATH = "definitions/mercenary_regions.json"
 CAPTURE_DIR = "captures"
+CAMPAIGN_CAPTURE_DIR = "captures_campaign"
 LOG_PATH = "logs/mercenary_log.tsv"
 HOTKEY = "f9"
 
@@ -54,7 +57,7 @@ HOTKEY = "f9"
 CLIENT_LOG_PATH = r"C:\Program Files (x86)\Grinding Gear Games\Path of Exile\logs\Client.txt"
 
 # Fixed TSV/console column set.
-LOG_FIELDNAMES = ["Name", "Type", "Infamous", "Gem 1", "Gem 2", "Gem 3", "Gem 4", "Map", "Exceptions"]
+LOG_FIELDNAMES = ["Timestamp", "Name", "Type", "Infamous", "Gem 1", "Gem 2", "Gem 3", "Gem 4", "Map", "Exceptions"]
 
 # Optional manual override -- leave as None to auto-detect (see
 # _resolve_tesseract_cmd below). Only set this if Tesseract is installed
@@ -171,7 +174,15 @@ def capture_full_screen(monitor_index=1):
 # the Claude API, or a mix, without touching the capture/crop plumbing.
 # ---------------------------------------------------------------------------
 
-_WORD_RUN_RE = re.compile(r"[A-Za-z][A-Za-z,.\- ]*[A-Za-z]")
+# Mercenary names can legitimately contain an apostrophe ("Ven'zi Kaldri").
+# Tesseract sometimes reads that glyph as a real apostrophe, sometimes as a
+# curly quote, and sometimes (confirmed on a real capture) as the Unicode
+# replacement character � -- all three must stay INSIDE the run (not
+# just tolerated at the edges, where the leading/trailing [A-Za-z] anchors
+# already exclude them) or the run breaks into two fragments at the
+# apostrophe and max(matches, key=len) silently keeps the wrong (often
+# longer, name-suffix-only) fragment instead of the full name.
+_WORD_RUN_RE = re.compile(r"[A-Za-z][A-Za-z,.\-'‘’� ]*[A-Za-z]")
 # Every mercenary name follows "Name, the Title" -- Tesseract has been seen
 # to misread the comma as a period ("Pahuto. the") and, separately, to
 # drop the space after a correctly-read comma ("Zari,the"). Since the
@@ -191,6 +202,39 @@ _NAME_COMMA_FIX_RE = re.compile(r"^(\w+)[.,]\s*the\b")
 # leading letter here is safe and targeted rather than fighting the
 # image heuristics further.
 _STRAY_ICON_PREFIX_RE = re.compile(r"^[A-Za-z]\s+(?=Infamous\b)")
+# A second, distinct kind of leading noise -- confirmed on a real
+# non-Infamous capture ("ae Ruktara, the Unrelenting", true name
+# "Ruktara, the Unrelenting"): background-art texture at the crop's edge
+# read by --psm 11 as its own short lowercase word, and -- unlike the
+# "Infamous" icon-bleed case above -- landed space-joined onto the real
+# name INSIDE the same _WORD_RUN_RE match rather than as a separable
+# second fragment, so the longest-run heuristic can't strip it on its
+# own. A real mercenary name always starts with a capitalized proper
+# name (never a lowercase word), so any short all-lowercase leading word
+# here is guaranteed noise, not clipped real content.
+_STRAY_NAME_PREFIX_RE = re.compile(r"^[a-z]{1,3}\s+(?=[A-Z])")
+# Same background-art noise, mirrored on the crop's RIGHT edge (confirmed
+# on a real capture, "oe Pradin Prowl-linger af", true name "Pradin
+# Prowl-linger" -- both edges of the isolated row show the same speckled
+# noise texture by eye). A real mercenary name never ends in a lowercase
+# word either (every known real name ends capitalized, incl. the last
+# word of a "Name, the Title" or hyphenated-surname form), so this is
+# the safe suffix mirror of _STRAY_NAME_PREFIX_RE above.
+#
+# A THIRD kind of edge noise -- confirmed on a real capture ("Alak
+# Prowl-linger PORE", true name "Alak Prowl-linger"): not background-art
+# texture this time, but an actual on-screen orange UI badge ("ORB")
+# sitting inside the wide/generous name crop, misread by --psm 11 as
+# "PORE" and space-joined onto the name the same way. Deliberately a
+# SEPARATE all-uppercase alternative rather than widening the lowercase
+# class above to be case-insensitive: a real title can legitimately end
+# in a short Title-Case word (e.g. "the Azadin Howler"), which must
+# never be stripped, but no real name segment is ever rendered fully
+# uppercase, so requiring EVERY letter to be uppercase is what keeps
+# this safe regardless of the noise token's length. No leading-edge
+# instance of this confirmed yet -- add a _STRAY_NAME_PREFIX_RE mirror
+# if/when one turns up, rather than guessing at it now.
+_STRAY_NAME_SUFFIX_RE = re.compile(r"(?<=[A-Za-z])\s+(?:[a-z]{1,3}|[A-Z]{1,6})$")
 
 
 def _isolate_text_row(crop: Image.Image):
@@ -313,8 +357,14 @@ def extract_text(crop: Image.Image) -> str:
     else:
         return None
     best = max(matches, key=len).strip()
+    # Normalize every apostrophe-like glyph _WORD_RUN_RE let through mid-run
+    # (curly quotes, and Tesseract's � misread) to a plain apostrophe.
+    for glyph in ("‘", "’", "�"):
+        best = best.replace(glyph, "'")
     best = _NAME_COMMA_FIX_RE.sub(r"\1, the", best)
     best = _STRAY_ICON_PREFIX_RE.sub("", best)
+    best = _STRAY_NAME_PREFIX_RE.sub("", best)
+    best = _STRAY_NAME_SUFFIX_RE.sub("", best)
     return best or None
 
 
@@ -506,6 +556,25 @@ def known_skills_for_type(mercenary_type: str, path: str = SKILLS_DEFINITION_PAT
     return _skill_pool_for_entry(entry)
 
 
+def _max_skill_count_for_type(mercenary_type: str, path: str = SKILLS_DEFINITION_PATH):
+    """Returns PrimaryCount+SecondaryCount+UtilityCount for this type+infamy
+    combination -- the full on-screen skill-row count once every slot is
+    unlocked (level 83 in every real capture seen so far) -- or None if
+    the type isn't recognized. Same infamy fallback as
+    known_skills_for_type. Used by extract_skill_names to recognize when
+    every real skill for this type has already been matched, so anything
+    left over can't be one more skill, whatever it looks like."""
+    if not mercenary_type:
+        return None
+    mercenaries = _load_mercenary_skills(path)
+    entry = mercenaries.get(mercenary_type)
+    if entry is None:
+        entry = mercenaries.get(_INFAMOUS_PREFIX_RE.sub("", mercenary_type).strip())
+    if entry is None:
+        return None
+    return entry.get("PrimaryCount", 0) + entry.get("SecondaryCount", 0) + entry.get("UtilityCount", 0)
+
+
 def all_known_skills(path: str = SKILLS_DEFINITION_PATH) -> list:
     """Returns the union of every skill (placeholder entries excluded)
     across every known type+infamy combination -- a broader (but less
@@ -518,7 +587,7 @@ def all_known_skills(path: str = SKILLS_DEFINITION_PATH) -> list:
     return skills
 
 
-def match_skill_name(candidate: str, mercenary_type: str = None, cutoff: float = 0.6) -> str:
+def match_skill_name(candidate: str, mercenary_type: str = None, cutoff: float = 0.6, warn: bool = True) -> str:
     """Corrects an OCR-read skill name against known skill pools, the
     same approach as match_mercenary_type but with a two-tier fallback:
     prefer the specific mercenary's own skill pool (narrower, so a match
@@ -535,36 +604,174 @@ def match_skill_name(candidate: str, mercenary_type: str = None, cutoff: float =
 
     If nothing scores above cutoff -- including when NEITHER pool has
     any entries, e.g. a genuinely unrecognized type with no global data
-    either -- the original candidate is returned as-is with a warning,
-    per the same reasoning as match_mercenary_type: a wrong "closest"
-    guess is worse than an unresolved value flagged for manual review.
+    either -- the original candidate is returned as-is, per the same
+    reasoning as match_mercenary_type: a wrong "closest" guess is worse
+    than an unresolved value flagged for manual review. `warn=False`
+    (used by extract_skill_names' individual OCR passes) suppresses the
+    NOTE here, since a single pass failing to match is meaningless noise
+    on its own -- extract_skill_names logs its own NOTE, once, only for
+    a skill that's still unresolved after picking the better-performing
+    pass.
+
+    Two real, reproduced failure modes found via a full real-warrant.txt-
+    vs-regenerated audit (see AI_RAMBLINGS.md) sit ahead of the plain
+    difflib match below, both because raw ratio() alone got the wrong
+    answer with real capture data on hand to prove it:
+
+    1. Exact-prefix preference. A skill name that visually wraps to two
+       on-screen lines (see extract_skill_names' docstring) produces a
+       first OCR line that's a complete, literal prefix of the true full
+       name -- e.g. "Leap Slam of" for "Leap Slam of Groundbreaking".
+       ratio() rewards raw character overlap regardless of length, so a
+       mercenary that ALSO has the shorter "Leap Slam" as an independent
+       real skill saw "leap slam of" score higher against "leap slam"
+       (0.857) than against the correct, longer "leap slam of
+       groundbreaking" (0.615) -- confirmed on two independent real
+       captures. An exact prefix relationship is a far stronger, more
+       specific signal than any ratio score, so it's checked first and
+       trusted outright, but only when exactly one pool entry qualifies
+       -- more than one real prefix match is rare enough to fall through
+       to ordinary scoring rather than guess between them.
+    2. Near-tie first-word disambiguation. Icon-bleed noise can glue a
+       short garbage token onto the front of a real line AND garble part
+       of the real name itself in the same reading (confirmed real case:
+       "GLACIAL HAMMER" read as "dl GLACIAL Eee"), landing ratio() in a
+       genuine near-tie between the correct name and an unrelated one
+       that happens to share a similar length/letter overlap ("Glacial
+       Hammer" 0.643 vs "Vaal Glacial Hammer" 0.667 -- the wrong, longer
+       name narrowly won). Rather than trust a sub-0.05 margin, this
+       strips candidate's own leading word (the suspected noise token)
+       and checks which of the top two candidates' OWN first word then
+       matches -- "glacial" unambiguously belongs to "Glacial Hammer",
+       not "Vaal Glacial Hammer". Only trusted when it picks exactly one
+       of the two; otherwise falls through to the same "don't guess, log
+       it" refusal as a below-cutoff read.
     """
     if not candidate:
         return candidate
     pool = known_skills_for_type(mercenary_type) or all_known_skills()
     if not pool:
         return candidate
+    lower_candidate = candidate.lower()
     lower_to_original = {s.lower(): s for s in pool}
-    matches = difflib.get_close_matches(candidate.lower(), lower_to_original.keys(), n=1, cutoff=cutoff)
-    if matches:
+
+    # A candidate that's ALREADY a complete, exact match for some pool
+    # entry always wins outright -- checked before the prefix heuristic
+    # below specifically because a real, valid, standalone skill name can
+    # itself be a strict prefix of a DIFFERENT real skill's name (e.g.
+    # "Leap Slam" is both its own real skill AND a prefix of "Leap Slam
+    # of Groundbreaking"); without this, the prefix rule would wrongly
+    # "correct" a perfectly correct exact read into the longer name every
+    # time (confirmed: broke the real "Leap Slam" fixtures below the
+    # first version of this fix was tested against).
+    if lower_candidate in lower_to_original:
+        return lower_to_original[lower_candidate]
+
+    # Exact-prefix preference, but ONLY when the candidate is at least as
+    # long as the shortest real name in this pool -- otherwise a short
+    # icon-bleed noise token is trivially a "prefix" of some unrelated
+    # long name by pure chance (confirmed real regression: "tr", 2
+    # characters of noise, is a literal prefix of "Triggerblades" and got
+    # wrongly promoted to a full match before this length floor existed,
+    # even though "tr" is shorter than every real skill name and could
+    # never be one on its own -- same floor extract_skill_names' own
+    # shape check applies for exactly this reason).
+    min_pool_len = min((len(p) for p in lower_to_original), default=0)
+    if len(lower_candidate) >= min_pool_len:
+        prefix_matches = [
+            lower for lower in lower_to_original
+            if lower != lower_candidate and lower.startswith(lower_candidate)
+        ]
+        if len(prefix_matches) == 1:
+            return lower_to_original[prefix_matches[0]]
+
+    matches = difflib.get_close_matches(lower_candidate, lower_to_original.keys(), n=2, cutoff=cutoff)
+    if not matches:
+        if warn:
+            _note(f"skill {candidate!r} didn't confidently match any known skill "
+                  f"(mercenary_type={mercenary_type!r}) -- logged as-is; check "
+                  f"definitions/skills_by_mercenary.json if this is a new/valid skill.")
+        return candidate
+    if len(matches) == 1:
         return lower_to_original[matches[0]]
-    _note(f"skill {candidate!r} didn't confidently match any known skill "
-          f"(mercenary_type={mercenary_type!r}) -- logged as-is; check "
-          f"definitions/skills_by_mercenary.json if this is a new/valid skill.")
+
+    best, second = matches[0], matches[1]
+    best_score = difflib.SequenceMatcher(None, lower_candidate, best).ratio()
+    second_score = difflib.SequenceMatcher(None, lower_candidate, second).ratio()
+    if best_score - second_score >= 0.05:
+        return lower_to_original[best]
+
+    # Near-tie: one of the two pool entries is often exactly the other
+    # with one or more extra LEADING words (the common "Vaal X" naming
+    # pattern) -- resolved by checking whether that extra word actually
+    # appears anywhere in the raw candidate text. OCR reliably reads a
+    # whole extra word when it's really there far more often than it
+    # garbles WITHIN one, so its total absence is strong evidence the
+    # shorter name is correct. Confirmed on two independent real cases
+    # ratio() got wrong by a narrow margin: "Burning Arrow" vs "Vaal
+    # Burning Arrow" (candidate had no "vaal" anywhere), "Glacial Hammer"
+    # vs "Vaal Glacial Hammer" (candidate's second word was itself
+    # garbled into "Eee", but still no "vaal").
+    best_words, second_words = best.split(), second.split()
+    resolved = None
+    if len(best_words) < len(second_words) and second_words[len(second_words) - len(best_words):] == best_words:
+        extra = " ".join(second_words[:len(second_words) - len(best_words)])
+        resolved = best if extra not in lower_candidate else second
+    elif len(second_words) < len(best_words) and best_words[len(best_words) - len(second_words):] == second_words:
+        extra = " ".join(best_words[:len(best_words) - len(second_words)])
+        resolved = second if extra not in lower_candidate else best
+    if resolved:
+        return lower_to_original[resolved]
+    if warn:
+        _note(f"skill {candidate!r} matched two known skills almost equally well "
+              f"({lower_to_original[best]!r} vs {lower_to_original[second]!r}) -- "
+              f"logged as-is rather than guessing; check definitions/skills_by_mercenary.json.")
     return candidate
 
 
 _CURLY_QUOTES_RE = re.compile(r"[\u2018\u2019]")
 
 
+# Every real skill name across all 65 mercenary type+infamy combinations
+# (definitions/skills_by_mercenary.json) is built only from these
+# characters -- confirmed by checking all of them directly (the one
+# exception, "[DNT] Unused", is a placeholder already excluded from the
+# usable pool elsewhere). A candidate containing anything outside this
+# set can't be a real skill regardless of OCR pass.
+_SKILL_NAME_CHARS_RE = re.compile(r"^[A-Za-z' :]+$")
+
+
 _SKILL_OCR_PSM_MODES = (3, 6)
 
 
 def _extract_skill_names_pass(crop: Image.Image, mercenary_type: str, psm: int) -> list:
-    raw = pytesseract.image_to_string(crop, config=f"--psm {psm}")
-    lines = [line.strip() for line in raw.split("\n") if line.strip()]
+    """Real, reproduced bug (see AI_RAMBLINGS.md): `image_to_string`'s raw
+    text stream trusts Tesseract's own internal block-traversal order,
+    which isn't always true top-to-bottom screen order -- confirmed on
+    two independent real captures where one skill's line came out dead
+    last in the stream despite sitting 4th-of-6 on screen, with every
+    OTHER line read and fuzzy-matched correctly (so this isn't an OCR
+    accuracy problem `match_skill_name` could ever fix). `image_to_data`
+    exposes each recognized word's own (block, paragraph, line) grouping
+    and pixel `top` position; grouping words into lines by that triple
+    and then sorting LINES by `top` recovers genuine visual order
+    regardless of which order Tesseract's own segmentation happened to
+    traverse them in.
+    """
+    data = pytesseract.image_to_data(crop, config=f"--psm {psm}", output_type=pytesseract.Output.DICT)
+    lines_by_key = {}
+    for i, text in enumerate(data["text"]):
+        text = text.strip()
+        if not text:
+            continue
+        key = (data["block_num"][i], data["par_num"][i], data["line_num"][i])
+        entry = lines_by_key.setdefault(key, {"words": [], "top": data["top"][i]})
+        entry["words"].append((data["left"][i], text))
+        entry["top"] = min(entry["top"], data["top"][i])
+    ordered = sorted(lines_by_key.values(), key=lambda entry: entry["top"])
+    lines = [" ".join(word for _left, word in sorted(entry["words"])) for entry in ordered]
     lines = [_CURLY_QUOTES_RE.sub("'", line) for line in lines]
-    return [match_skill_name(line, mercenary_type) for line in lines]
+    return [match_skill_name(line, mercenary_type, warn=False) for line in lines]
 
 
 def extract_skill_names(crop: Image.Image, mercenary_type: str = None) -> list:
@@ -602,11 +809,47 @@ def extract_skill_names(crop: Image.Image, mercenary_type: str = None) -> list:
     garbage token glued onto the front of a real name's line, or a lone
     garbage line by itself) -- the same general "leading noise" pattern
     tolerated elsewhere in this project (see extract_text/
-    parse_mercenary_type) -- filtered out downstream by
-    match_skill_name's fuzzy pool match (a genuine no-match is logged
-    and returned as-is, not corrected into a wrong skill) and, for
-    warrant_extracted.txt specifically, build_warrant_extracted_text's
-    known-skill-pool membership filter.
+    parse_mercenary_type). A glued-on prefix is absorbed by
+    match_skill_name's fuzzy pool match same as always. A LONE garbage
+    line can never fuzzy-match anything, so it's dropped outright rather
+    than kept as a fake "unresolved skill" candidate, via two layered
+    checks:
+
+    1. Quota check (primary, most reliable): if every real skill for
+       this type is ALREADY matched (`_max_skill_count_for_type`'s
+       PrimaryCount+SecondaryCount+UtilityCount), any extra unmatched
+       line can't be one more skill no matter what it looks like --
+       there's nothing left to be. This is what actually explains every
+       real lone-garbage-line case confirmed so far, including ones
+       that don't share any obvious shape (a Fallen Reverend capture
+       produced 'CSaee' -- 5 letters, ordinary shape, no length or
+       character-class tell at all) -- and, as a side effect, resolves
+       a second known false alarm the same way: a long skill name that
+       visually wraps to two on-screen lines (e.g. "CORRUPTED BLADE
+       VORTEX" / "OF THE SCYTHE") produces a real second OCR line that
+       can't match anything on its own, previously surfaced as its own
+       spurious NOTE ('THE SCYTHE') despite nothing being missing --
+       once the quota's already full, this drops the same way.
+    2. Shape check (fallback, for when the quota ISN'T yet full -- an
+       unrecognized type, or a real lower-level mercenary showing fewer
+       than its full skill count, still unconfirmed either way): too
+       short to be real (shorter than every real skill name in the
+       pool -- the shortest confirmed real one is "Arc", 3 characters)
+       OR containing a character no real skill name has ever used (see
+       _SKILL_NAME_CHARS_RE) -- either alone is enough to drop it,
+       since a real skill name violates neither. Confirmed real across
+       two other independent captures: a Combatant capture produced
+       '~', 'ri', 'mi', 'bi', '(R)' as extra one-or-two-character
+       lines, a Kineticist capture produced 'ear \xa2' (5 characters,
+       past this check's length floor but caught by its character
+       check) -- both read from the skill icons' own art bleeding into
+       the OCR crop.
+
+    Either check is what match_skill_name's fuzzy match alone can't do
+    on its own (it has no concept of "this can't be real"), and both
+    keep such lines out of warrant_generated.txt's "unrecognized skill
+    row(s), dropped" footer, where they'd otherwise look like a real
+    skill got missed even though nothing was actually lost.
 
     Each line is normalized (curly apostrophes -> straight, matching
     the warrant-transcribed known-skills data) and corrected via
@@ -619,16 +862,57 @@ def extract_skill_names(crop: Image.Image, mercenary_type: str = None) -> list:
     known_skills_for_type's docstring for why.
     """
     pool = set(known_skills_for_type(mercenary_type)) or set(all_known_skills())
+    min_skill_length = min((len(s) for s in pool), default=0)
+    max_skill_count = _max_skill_count_for_type(mercenary_type)
     passes = [_extract_skill_names_pass(crop, mercenary_type, psm) for psm in _SKILL_OCR_PSM_MODES]
-    return max(passes, key=lambda lines: sum(1 for name in lines if name in pool))
+    chosen = max(passes, key=lambda lines: sum(1 for name in lines if name in pool))
+    matched_count = len({name for name in chosen if name in pool})
+    quota_full = max_skill_count is not None and matched_count >= max_skill_count
+    result = []
+    for name in chosen:
+        if name in pool:
+            if result and result[-1] == name:
+                # A skill name that visually wraps to two on-screen lines
+                # can have BOTH the truncated first line (resolved via
+                # match_skill_name's exact-prefix preference) and the bare
+                # continuation line independently fuzzy-match the SAME
+                # full name -- confirmed real case: "Leap Slam of
+                # Groundbreaking" wrapped to "LEAP SLAM OF" / "GROUNDBREAKING",
+                # both correctly resolving to this name on their own, which
+                # would otherwise produce two rows for one real skill and
+                # shift every later row's alignment by one. A mercenary's
+                # skill list never contains the same name twice (unlike
+                # supports -- see _resolve_same_skill_collisions, this
+                # doesn't apply the other way), so an immediately adjacent
+                # duplicate is always this wrap artifact, never a genuine
+                # repeat.
+                continue
+            result.append(name)
+            continue
+        if quota_full:
+            continue  # every real skill for this type is already accounted for -- can't be one more, whatever this looks like
+        if len(name) < min_skill_length or not _SKILL_NAME_CHARS_RE.match(name):
+            continue  # structurally can't be a real skill -- icon-bleed noise, not worth flagging
+        result.append(name)
+        _note(f"skill {name!r} didn't confidently match any known skill in "
+              f"either OCR pass (mercenary_type={mercenary_type!r}) -- logged "
+              f"as-is; check definitions/skills_by_mercenary.json if this is "
+              f"a new/valid skill.")
+    return result
 
 
 _LEVEL_DIGITS_RE = re.compile(r"(\d+)")
 
+# Mercenary levels track the game's own character level cap (100) -- real
+# captures on hand span 27-83. Used only as an implausibility check on a
+# --psm 11 reading (see extract_level), not as a validated ceiling in its
+# own right.
+_LEVEL_PLAUSIBLE_MAX = 100
+
 
 def extract_level(crop: Image.Image):
     """OCRs the level region ("Lvl NN") and returns the level as an int,
-    or None if no digits were found.
+    or None if no digits were found under either pass.
 
     Uses --psm 11 directly on the raw crop, no _isolate_text_row
     preprocessing -- tested against 8 real screenshots (Lvl 66, 68, 73,
@@ -640,12 +924,34 @@ def extract_level(crop: Image.Image):
     CTRL+PRTSC captures, not mss, so this is validated against the
     region's real position and the text's OCR-readability, but not yet
     against an actual mss capture end to end.
+
+    Real, reproduced failure once real mss data existed below the 8
+    calibration screenshots' 66-83 range: a genuinely clean "Lvl 32" crop
+    (test_data/mercenary_levels/lvl32.png) reads as "Lvl 5250" under
+    --psm 11 -- image_to_data shows this as ONE low-confidence word
+    token, not multiple merged fragments, i.e. --psm 11 is misreading the
+    "32" glyphs themselves, not picking up border/corner noise the way
+    --psm 7/6 did. OCR confidence itself doesn't separate this from
+    already-correct reads (this case's conf=38 sits BETWEEN several
+    correct reads' own confidences, e.g. Lvl 83 at conf=0 and Lvl 79 at
+    conf=26 -- checked directly against every real crop on hand, not
+    assumed), so it can't be the trigger. Implausibility of the VALUE can
+    be, though: no real mercenary level is 5250. When the --psm 11 result
+    is missing or exceeds _LEVEL_PLAUSIBLE_MAX, retry with --psm 3, which
+    reads this specific crop correctly (32) precisely because it uses
+    different glyph segmentation -- confirmed against all 10 real crops
+    on hand this never overrides an already-correct --psm 11 reading,
+    since --psm 11 is only wrong on this one.
     """
     raw = pytesseract.image_to_string(crop, config="--psm 11").strip()
     match = _LEVEL_DIGITS_RE.search(raw)
-    if match is None:
-        return None
-    return int(match.group(1))
+    level = int(match.group(1)) if match else None
+    if level is not None and level <= _LEVEL_PLAUSIBLE_MAX:
+        return level
+
+    raw = pytesseract.image_to_string(crop, config="--psm 3").strip()
+    match = _LEVEL_DIGITS_RE.search(raw)
+    return int(match.group(1)) if match else None
 
 
 def parse_mercenary_type(raw_type_text: str):
@@ -722,16 +1028,24 @@ def slugify_reference_name(display_name: str) -> str:
     return slug.strip("_")
 
 
+_DISPLAY_NAME_LOWERCASE_WORDS = {"of"}
+
+
 def display_name_from_slug(slug: str) -> str:
     """Converts an assets/ filename slug back to a human-readable
     display name for console/log output (e.g. "spectral_helix_of_trarthus"
-    -> "Spectral Helix Of Trarthus"). The on-disk reference filename
+    -> "Spectral Helix of Trarthus"). The on-disk reference filename
     always stays lowercase_with_underscores per the naming convention --
     this only affects how the matched name is displayed, never how it's
-    stored. Original word casing (e.g. "of" vs "Of") isn't recoverable
-    from the slug alone, so every word is capitalized rather than
-    guessing at grammar."""
-    return " ".join(word.capitalize() for word in slug.split("_"))
+    stored. Every real "<X> of <Y>" gem name in definitions/
+    gems_by_mercenary.json keeps "of" lowercase and never leads with it,
+    so it's the one word excluded from capitalization; every other word
+    is capitalized (a real regression caught this: Sanguimancer's gem
+    displayed as "Storm Call Of Trarthus" before this fix)."""
+    return " ".join(
+        word if word in _DISPLAY_NAME_LOWERCASE_WORDS else word.capitalize()
+        for word in slug.split("_")
+    )
 
 
 def _load_reference_icons(references_dir: str = REFERENCES_DIR, categories=None):
@@ -979,6 +1293,12 @@ def match_icon(crop: Image.Image, references_dir: str = REFERENCES_DIR, min_scor
 # test_data/gems/top_left.png) and the real non-gem ceiling (0.7568)
 # now OVERLAP. No threshold value separates them anymore -- this is the
 # "sturdier approach needed" signal predicted above, not a fourth nudge.
+# SUPERSEDED -- kept only as the historical record of why pixel
+# correlation was abandoned for gem presence (three real false-positive
+# misfires, each threshold nudge closer to the gem floor than the last,
+# until this one and RUCKSACK_GEM_PRESENCE_THRESHOLD below stopped being
+# separable by any threshold at all). No longer read by is_gem_present().
+#
 # A same-day frozen-ResNet18-embedding test (see assets/README.md)
 # separates the same two samples cleanly (gem floor 0.9250, non-gem
 # ceiling 0.7564, ~0.17 margin) -- a validated candidate fix, not yet
@@ -987,43 +1307,128 @@ def match_icon(crop: Image.Image, references_dir: str = REFERENCES_DIR, min_scor
 # than the optional/experimental role it's had so far this session.
 GEM_PRESENCE_THRESHOLD = 0.755
 
-
-def is_gem_present(crop: Image.Image, references_dir: str = REFERENCES_DIR, threshold: float = GEM_PRESENCE_THRESHOLD) -> bool:
-    """Loosely checks whether a rucksack slot contains *some* known gem,
-    without attempting to identify *which* one -- see GEM_PRESENCE_THRESHOLD
-    for why this coarser question has a reliable answer where match_icon's
-    fine-grained identity question currently doesn't. Used as the first
-    step of the gem-detection stopgap: presence here, identity resolved
-    afterward from the mercenary's own type (see resolve_gem_presence).
-    """
-    refs = _load_reference_icons(references_dir)
-    if not refs:
-        return False
-    best_score = max((_icon_similarity_score(crop, ref_img) for _category, _name, ref_img in refs), default=-1.0)
-    return best_score >= threshold
-
-
-# Real, measured margin from validating this against every real known-gem
-# and known-false-positive session on hand (8 vs. 9 -- see assets/README.md,
-# "Multi-scale/position search for gem PRESENCE"): real gem floor 0.8209,
-# real non-gem ceiling 0.7966. This threshold sits at their midpoint, same
-# convention as GEM_PRESENCE_THRESHOLD above. The margin (~0.024) is thin --
-# the same size that's broken GEM_PRESENCE_THRESHOLD twice before -- so
-# treat this as a real but still-early calibration, likely to need
-# revision as more real false positives turn up, not a settled number.
+# SUPERSEDED -- see GEM_PRESENCE_THRESHOLD above. Real, measured margin
+# from validating this against every real known-gem and known-false-
+# positive session on hand (8 vs. 9 -- see assets/README.md, "Multi-
+# scale/position search for gem PRESENCE"): real gem floor 0.8209, real
+# non-gem ceiling 0.7966. No longer read by is_gem_present_in_rucksack().
 RUCKSACK_GEM_PRESENCE_THRESHOLD = 0.8088
 
-# How far past each quadrant's own boundary the search window extends, in
-# px, before gluing four adjacent quadrants into one region (see
-# _glue_rucksack_region). Validated at 10/16/22/30px -- all four produced
-# IDENTICAL results (see assets/README.md), meaning the correct match
-# never needed to reach past its own quadrant's boundary; the margin
-# mainly gives _icon_similarity_score_multiscale's scale search (up to
-# 1.15x) room to not clip against the window edge. 16 is a mid-of-range
-# pick, not independently optimized -- safe to tune up (more real
-# neighboring content considered, more compute) or down (less of both)
-# if real data ever calls for it.
-RUCKSACK_WINDOW_MARGIN = 16
+# Real validation numbers (AI_RAMBLINGS.md's "Embeddings for gem
+# PRESENCE" and its ONNX-export follow-up): a frozen, ImageNet-pretrained
+# ResNet18's penultimate-layer features, compared by cosine similarity,
+# checked against every real gem sample and every real non-gem sample on
+# hand (35 vs. 62) -- real gem floor 0.9202, real non-gem ceiling 0.8273,
+# ZERO overlap. This threshold sits at their midpoint, same convention as
+# every presence threshold before it, but with a real ~0.093 margin
+# instead of the razor's edge that eventually broke pixel correlation
+# three times over (GEM_PRESENCE_THRESHOLD/RUCKSACK_GEM_PRESENCE_THRESHOLD
+# above). Unlike the pixel-correlation approach, plain isolated per-
+# quadrant crops score well here with no multi-scale/position search
+# needed -- a global-average-pooled CNN embedding isn't nearly as
+# sensitive to small alignment differences as raw pixel correlation was,
+# so is_gem_present_in_rucksack() no longer needs _glue_rucksack_region/
+# _icon_similarity_score_multiscale at all (both kept below, unused for
+# presence now, since they're still relevant to the separate, still-open
+# identity-matching improvement idea logged in AI_RAMBLINGS.md).
+GEM_EMBEDDING_PRESENCE_THRESHOLD = 0.8737
+
+GEM_EMBEDDING_MODEL_PATH = os.path.join("assets", "models", "gem_embedding_resnet18.onnx")
+GEM_EMBEDDING_REFERENCES_PATH = os.path.join("assets", "models", "gem_reference_embeddings.json")
+
+_gem_embedding_session = None
+_gem_reference_embeddings_cache = None
+
+
+def _load_gem_embedding_session(model_path: str = GEM_EMBEDDING_MODEL_PATH):
+    """Loads (once, cached) the ONNX gem-embedding model via onnxruntime.
+    See tools/export_gem_embedding_model.py for how this file is built
+    and why ONNX rather than shipping torch/torchvision directly:
+    onnxruntime is a light, inference-only dependency (~46MB installed,
+    measured) versus torch's ~546MB -- the export itself needs the full
+    torch stack, but only as a one-time dev-side step, not something end
+    users of this pipeline need. Returns None (callers fail closed, not
+    crash) if the model hasn't been exported yet."""
+    global _gem_embedding_session
+    if _gem_embedding_session is None:
+        if not os.path.isfile(model_path):
+            return None
+        _gem_embedding_session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
+    return _gem_embedding_session
+
+
+def _load_gem_reference_embeddings(path: str = GEM_EMBEDDING_REFERENCES_PATH) -> dict:
+    """Loads (once, cached) the precomputed {gem name: 512-d embedding}
+    reference set -- generated once by tools/export_gem_embedding_model.py,
+    never recomputed at capture time (embedding all 7 references on every
+    single capture would work too, just slower for no benefit -- they
+    never change between runs)."""
+    global _gem_reference_embeddings_cache
+    if _gem_reference_embeddings_cache is None:
+        if not os.path.isfile(path):
+            _gem_reference_embeddings_cache = {}
+        else:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            _gem_reference_embeddings_cache = {
+                name: np.array(vec, dtype=np.float32) for name, vec in data["embeddings"].items()
+            }
+    return _gem_reference_embeddings_cache
+
+
+# ImageNet normalization constants -- must match tools/export_gem_embedding_model.py's
+# torchvision.transforms.Normalize exactly, since this reimplements that
+# same preprocessing with plain PIL/numpy rather than torchvision (production
+# only carries onnxruntime, not torch/torchvision -- the whole point of the
+# ONNX export).
+_IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+_IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+
+
+def _embed_crop(crop: Image.Image, session) -> np.ndarray:
+    """Runs one crop through the embedding model, returning its
+    L2-normalized 512-d feature vector. Resize uses BILINEAR explicitly
+    -- torchvision.transforms.Resize's own default -- so this matches
+    tools/export_gem_embedding_model.py's preprocessing exactly rather
+    than drifting on Pillow's own default resize filter."""
+    img = crop.convert("RGB").resize((224, 224), Image.BILINEAR)
+    arr = np.asarray(img, dtype=np.float32) / 255.0
+    arr = (arr - _IMAGENET_MEAN) / _IMAGENET_STD
+    arr = arr.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)  # NCHW
+    vec = session.run(["embedding"], {"input": arr})[0][0]
+    return vec / np.linalg.norm(vec)
+
+
+def _gem_embedding_score(crop: Image.Image) -> float:
+    """Best cosine similarity between `crop`'s embedding and every
+    reference gem's precomputed embedding -- the coarse "is this ANY
+    gem" signal is_gem_present()/is_gem_present_in_rucksack() accept
+    against GEM_EMBEDDING_PRESENCE_THRESHOLD. Returns -1.0 (fails every
+    real threshold) rather than raising if the exported model or
+    reference file isn't present -- a missing export should degrade to
+    "no gem detected", not crash a live capture."""
+    session = _load_gem_embedding_session()
+    refs = _load_gem_reference_embeddings()
+    if session is None or not refs:
+        return -1.0
+    vec = _embed_crop(crop, session)
+    return max(float(np.dot(vec, ref_vec)) for ref_vec in refs.values())
+
+
+def is_gem_present(crop: Image.Image, threshold: float = GEM_EMBEDDING_PRESENCE_THRESHOLD) -> bool:
+    """Checks whether a rucksack slot contains *some* known gem, without
+    attempting to identify *which* one -- see GEM_EMBEDDING_PRESENCE_THRESHOLD
+    for the real validation numbers this is calibrated against. Used as
+    the first step of the gem-detection stopgap: presence here, identity
+    resolved afterward from the mercenary's own type (see
+    resolve_gem_presence).
+
+    Uses embeddings (a frozen ResNet18's penultimate-layer features, via
+    _gem_embedding_score), not the pixel-correlation `_icon_similarity_score`
+    this function used previously -- see GEM_PRESENCE_THRESHOLD's code
+    comment above for why that approach was abandoned.
+    """
+    return _gem_embedding_score(crop) >= threshold
 
 
 def _glue_rucksack_region(crops: dict):
@@ -1038,9 +1443,17 @@ def _glue_rucksack_region(crops: dict):
     captured separately, but not load-bearing for matching either.
 
     `crops` must have all four "rucksack_<quadrant>" keys (matching
-    process_capture's crop dict) -- this is the caller-facing entry point
-    for the windowed multi-scale presence check below, not something a
-    single isolated crop can substitute for.
+    process_capture's crop dict).
+
+    NOT used by is_gem_present_in_rucksack() anymore -- embeddings
+    (see GEM_EMBEDDING_PRESENCE_THRESHOLD) don't need the windowed
+    multi-scale search this was built for, since a CNN embedding isn't
+    nearly as sensitive to small alignment differences as raw pixel
+    correlation was. Kept because it's still relevant to the separate,
+    still-open identity-matching improvement idea logged in
+    AI_RAMBLINGS.md ("the natural next step for better gem
+    differentiation is applying _icon_similarity_score_multiscale to
+    identity matching generally").
     """
     tl = crops["rucksack_top_left"]
     tr = crops["rucksack_top_right"]
@@ -1060,58 +1473,30 @@ def _glue_rucksack_region(crops: dict):
     return canvas, bounds
 
 
-def is_gem_present_in_rucksack(crops: dict, references_dir: str = REFERENCES_DIR,
-                                margin: int = RUCKSACK_WINDOW_MARGIN,
-                                threshold: float = RUCKSACK_GEM_PRESENCE_THRESHOLD) -> dict:
-    """Per-quadrant gem presence for a whole rucksack at once, using real
-    multi-scale/position search (_icon_similarity_score_multiscale)
-    against real neighboring content (_glue_rucksack_region) instead of
-    is_gem_present()'s single fixed-size, fixed-position comparison on an
-    isolated crop.
+def is_gem_present_in_rucksack(crops: dict, threshold: float = GEM_EMBEDDING_PRESENCE_THRESHOLD) -> dict:
+    """Per-quadrant gem presence for a whole rucksack at once -- the
+    whole-rucksack-aware entry point process_capture() uses instead of
+    four independent is_gem_present() calls, kept as its own function
+    (not a signature change to is_gem_present) purely so multi-gem
+    counting (up to 4 per encounter) stays explicit about scoring each
+    quadrant independently, not collapsing to a single whole-rucksack
+    yes/no.
 
-    Exists because is_gem_present() was measured to fail on nearly half
-    of real non-gem examples once enough of them existed (see
-    assets/README.md, GEM_PRESENCE_THRESHOLD's code comment) -- no
-    threshold value fixes that; real search room does, at real cost (see
-    below). is_gem_present() itself is untouched and still used for
-    single-crop test fixtures (test_data/gems/, test_data/currencies/,
-    test_data/scarabs/) --
-    this is the whole-rucksack-aware entry point process_capture() uses
-    instead of four independent is_gem_present() calls, kept SEPARATE
-    (not a signature change to is_gem_present) so nothing that already
-    depends on scoring one isolated crop in isolation breaks.
-
-    Each of the four quadrants gets its own independent yes/no (searched
-    within its own boundary plus `margin`, not the whole rucksack at
-    once) so multi-gem counting (up to 4 per encounter) keeps working
-    exactly as before -- this does not collapse to a single whole-
-    rucksack yes/no.
-
-    Performance: ~30ms per quadrant (7 references x 7 scales), ~120ms for
-    all four -- against ~1ms total for the four is_gem_present() calls it
-    replaces. Real, not free, but well under anything noticeable on a
-    keypress-triggered capture. Tune via `margin` (window size) and the
-    module-level _ICON_MULTISCALE_FACTORS (scale count/range) if this
-    ever needs to trade accuracy for speed or vice versa -- see
-    assets/README.md for the measured cost of a few different settings.
+    Used to do real windowed multi-scale/position search
+    (_icon_similarity_score_multiscale against _glue_rucksack_region)
+    to work around pixel correlation's alignment sensitivity -- no
+    longer needed now that both this and is_gem_present() score via
+    embeddings (see GEM_EMBEDDING_PRESENCE_THRESHOLD), which isn't
+    sensitive to small alignment differences the same way. Each
+    quadrant is now just an independent is_gem_present()-equivalent
+    call on its own isolated crop.
 
     Returns {"rucksack_top_left": bool, ...} -- same four keys
-    process_capture() already stores in its record, so this is a drop-in
-    replacement for the loop of is_gem_present() calls there.
+    process_capture() already stores in its record.
     """
-    refs = _load_reference_icons(references_dir)
-    if not refs:
-        return {k: False for k in ("rucksack_top_left", "rucksack_top_right",
-                                    "rucksack_bottom_left", "rucksack_bottom_right")}
-    canvas, bounds = _glue_rucksack_region(crops)
-    w, h = canvas.size
-    present = {}
-    for quadrant, (x0, y0, x1, y1) in bounds.items():
-        window = canvas.crop((max(0, x0 - margin), max(0, y0 - margin),
-                               min(w, x1 + margin), min(h, y1 + margin)))
-        best = max(_icon_similarity_score_multiscale(window, ref_img)[0] for _c, _n, ref_img in refs)
-        present[quadrant] = best >= threshold
-    return present
+    quadrants = ("rucksack_top_left", "rucksack_top_right",
+                 "rucksack_bottom_left", "rucksack_bottom_right")
+    return {q: _gem_embedding_score(crops[q]) >= threshold for q in quadrants}
 
 
 def resolve_gem_presence(mercenary_type: str, gem_count: int, blade_ambusher_matches: list = None):
@@ -1274,7 +1659,7 @@ def resolve_gem_with_type_crosscheck(matched_gem: str, mercenary_type: str):
 BLADE_AMBUSHER_GEM_SLUGS = ("spectral_throw_of_trarthus", "spectral_helix_of_trarthus")
 
 
-def disambiguate_blade_ambusher_gem(crop: Image.Image, references_dir: str = REFERENCES_DIR, min_margin: float = 0.1) -> str:
+def disambiguate_blade_ambusher_gem(crop: Image.Image, min_margin: float = 0.02) -> str:
     """Resolves WHICH of Blade Ambusher's two possible gems a rucksack
     slot crop shows -- Spectral Throw of Trarthus or Spectral Helix of
     Trarthus -- the one case resolve_gem_presence's type-based lookup
@@ -1287,41 +1672,425 @@ def disambiguate_blade_ambusher_gem(crop: Image.Image, references_dir: str = REF
 
     Deliberately NOT a call to match_icon() against the full reference
     pool -- this only ever compares the crop against these two specific
-    candidates. That distinction matters: a real, reproduced near-
-    collision exists between Spectral Throw and Bladefall of Trarthus
-    (0.9387 against two independent real Bladefall captures -- see
+    candidates, via the same embedding model as is_gem_present (see
+    GEM_EMBEDDING_PRESENCE_THRESHOLD's docstring for why embeddings
+    replaced pixel correlation project-wide). That distinction matters
+    regardless of scoring method: a real, reproduced near-collision
+    exists between Spectral Throw and Bladefall of Trarthus (see
     assets/README.md), which would sit inside match_icon()'s normal
     min_score/min_margin search and risk a wrong answer. It's irrelevant
     here because the caller already knows, from is_gem_present() plus
     the mercenary's own type, that the crop is one of exactly these two
     -- Bladefall was never a real candidate for this slot to begin with.
 
-    Validated against real same-gem variance on both sides, not a
-    single reference photo (see assets/README.md): 7 independent real
-    Spectral Helix captures scored 0.9824-1.0000 against each other,
-    while the one real Spectral Throw capture on hand scored only
-    0.7352-0.7430 against every one of those 7 -- a real, ~0.24 margin.
-    `min_margin` defaults well below that measured gap (rather than at
-    it) to leave real headroom for Spectral Throw's own same-gem
-    variance, which hasn't been measured yet (n=1 on that side so far).
+    Switched from raw pixel correlation (_icon_similarity_score) after
+    that approach broke on a real capture (20260915_170339): Spectral
+    Throw scored HIGHER than the true answer, Spectral Helix (0.7592 vs
+    0.6856) -- a wrong ranking, not just a narrow margin. Embeddings
+    rank all 10 real samples on hand correctly (2 canonical crops + 7
+    Spectral Helix + 1 Spectral Throw variance samples, including this
+    exact previously-broken one), with margins from 0.0264 (this same
+    capture, now ranked correctly but tightly) up to 0.1197. Unlike
+    GEM_EMBEDDING_PRESENCE_THRESHOLD, there's no confirmed real WRONG-
+    ranking case on hand to calibrate a ceiling against -- `min_margin`
+    is set well below the worst observed CORRECT margin (0.0264) rather
+    than at a validated floor/ceiling midpoint, so this is a lower-
+    confidence bound than presence detection's, worth revisiting as
+    more real Spectral Throw variance turns up (n=2 so far, still much
+    thinner than Helix's n=7).
 
     Returns the winning gem's slug (one of BLADE_AMBUSHER_GEM_SLUGS), or
     None if the two candidates' scores don't clear min_margin apart --
     an unresolved reading is left unresolved rather than guessed, same
     policy as every other fuzzy-match function in this file.
     """
-    refs = {name: img for _category, name, img in _load_reference_icons(references_dir)
-            if name in BLADE_AMBUSHER_GEM_SLUGS}
-    if len(refs) < 2:
+    session = _load_gem_embedding_session()
+    references = _load_gem_reference_embeddings()
+    refs = {name: np.array(references[name]) for name in BLADE_AMBUSHER_GEM_SLUGS if name in references}
+    if session is None or len(refs) < 2:
         return None
 
-    scores = {name: _icon_similarity_score(crop, ref_img) for name, ref_img in refs.items()}
+    vec = _embed_crop(crop, session)
+    scores = {name: float(np.dot(vec, ref_vec)) for name, ref_vec in refs.items()}
 
     best_name = max(scores, key=scores.get)
     other_name = next(n for n in BLADE_AMBUSHER_GEM_SLUGS if n != best_name)
     if scores[best_name] - scores[other_name] >= min_margin:
         return best_name
     return None
+
+
+# ---------------------------------------------------------------------------
+# Support icon identification -- promoted from tools/match_support_icon.py
+# and tools/harvest_support_icons.py once both were validated at 100%
+# against every real crop on hand (1,971 real validation crops, see
+# AI_RAMBLINGS.md's "Local embedding model as the eventual support-
+# matching approach"). assets/harvested_supports/ is built offline by
+# harvest_support_icons.py from real warrant.txt ground truth; this only
+# consumes its output (via the precomputed support_reference_embeddings.json,
+# see tools/export_support_reference_embeddings.py), the same "reference
+# catalog built separately, matched live here" split gems already use.
+# ---------------------------------------------------------------------------
+
+SUPPORT_REFERENCE_EMBEDDINGS_PATH = os.path.join("assets", "models", "support_reference_embeddings.json")
+SUPPORTS_DEFINITION_PATH = "definitions/supports.json"
+SUPPORTS_BY_SKILLS_PATH = "definitions/supports_by_skills.json"
+
+# A cell's flat background has near-zero brightness variance; an occupied
+# one has real icon art + a gold border + a tier badge, all high-contrast
+# against it. Same validated value tools/harvest_support_icons.py uses
+# (measured directly: ~1.0-1.3 blank, ~42 occupied).
+SUPPORT_OCCUPIED_STD_THRESHOLD = 5.0
+
+# Every real match measured on hand (700-sample check across real
+# warrant.txt-backed captures) scored 0.981 or higher, so 0.95 leaves
+# real margin below every known-good case. Provisional, not validated
+# the same rigorous floor/ceiling way GEM_EMBEDDING_PRESENCE_THRESHOLD
+# was: there's no confirmed real "wrong icon" score to calibrate a true
+# gap against, since 105 of the 159 real (icon, tier) combinations are
+# harvested so far (see assets/support_icon_coverage.md) -- a genuinely
+# uncovered support showing up live has no proven safety net beyond
+# this margin, only this margin's existence at all.
+SUPPORT_MATCH_MIN_SCORE = 0.95
+
+_support_reference_embeddings_cache = None
+_supports_definition_cache = None
+_support_visual_key_to_names_cache = None
+_supports_by_skills_cache = None
+
+
+def _load_support_reference_embeddings(path: str = SUPPORT_REFERENCE_EMBEDDINGS_PATH) -> dict:
+    """Cached loader for the precomputed {visual_key: 512-d embedding}
+    reference set (tools/export_support_reference_embeddings.py). Returns
+    {} if the file doesn't exist -- match_support_icon() then fails
+    closed (returns None) rather than crashing a live capture."""
+    global _support_reference_embeddings_cache
+    if _support_reference_embeddings_cache is not None:
+        return _support_reference_embeddings_cache
+    if not os.path.isfile(path):
+        _support_reference_embeddings_cache = {}
+        return _support_reference_embeddings_cache
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    _support_reference_embeddings_cache = {
+        k: np.array(v, dtype=np.float32) for k, v in data.get("embeddings", {}).items()
+    }
+    return _support_reference_embeddings_cache
+
+
+def _load_supports_definition(path: str = SUPPORTS_DEFINITION_PATH) -> dict:
+    global _supports_definition_cache
+    if _supports_definition_cache is not None:
+        return _supports_definition_cache
+    if not os.path.isfile(path):
+        _supports_definition_cache = {}
+        return _supports_definition_cache
+    with open(path, encoding="utf-8") as f:
+        _supports_definition_cache = json.load(f).get("supports", {})
+    return _supports_definition_cache
+
+
+def _support_visual_key_to_names(path: str = SUPPORTS_DEFINITION_PATH) -> dict:
+    """Reverse lookup: visual_key ("<icon>_<tier roman, lowercase>") ->
+    [(support display name, tier int, tier roman), ...] -- more than one
+    entry means a real, ground-truth-CONFIRMED icon+tier collision (two
+    or more real supports render pixel-identical, see
+    assets/support_icon_coverage.md), not an unresolved gap;
+    resolve_support_name() culls this list against the specific skill's
+    own PossibleSupports before falling back to reporting every member."""
+    global _support_visual_key_to_names_cache
+    if _support_visual_key_to_names_cache is not None:
+        return _support_visual_key_to_names_cache
+    groups = {}
+    for name, entry in _load_supports_definition(path).items():
+        key = f"{entry['icon']}_{entry['tier_roman'].lower()}"
+        groups.setdefault(key, []).append((name, entry["tier"], entry["tier_roman"]))
+    _support_visual_key_to_names_cache = groups
+    return _support_visual_key_to_names_cache
+
+
+def _load_supports_by_skills(path: str = SUPPORTS_BY_SKILLS_PATH) -> dict:
+    """Cached loader for definitions/supports_by_skills.json -- each
+    skill's real PossibleSupports pool, name+tier baked into one string
+    (e.g. "Cooldown Recovery II"), used to cull an icon+tier collision
+    down to only the candidate(s) the specific skill in question can
+    actually roll (see resolve_support_name)."""
+    global _supports_by_skills_cache
+    if _supports_by_skills_cache is not None:
+        return _supports_by_skills_cache
+    if not os.path.isfile(path):
+        _supports_by_skills_cache = {}
+        return _supports_by_skills_cache
+    with open(path, encoding="utf-8") as f:
+        _supports_by_skills_cache = json.load(f).get("skills", {})
+    return _supports_by_skills_cache
+
+
+def resolve_support_name(visual_key: str, skill_name: str = None):
+    """Maps a resolved (icon, tier) key back to a display string ready
+    for warrant_generated.txt, e.g. "Brutality (Tier: 2)".
+
+    For a real icon+tier collision (see _support_visual_key_to_names),
+    culls the candidate list against `skill_name`'s own real
+    PossibleSupports pool (definitions/supports_by_skills.json) first --
+    a collision at the ICON level doesn't mean every colliding name is
+    actually a real option for THIS skill (confirmed directly: Holy
+    Relic's pool includes "Cooldown Recovery II" but not "Shock Chance
+    II"/"DoT Multiplier II"/"Chaos Penetration II", even though all four
+    share one icon+tier in general). Only trusts the cull if it leaves
+    at least one candidate -- an empty result would mean this specific
+    (icon, tier) reading doesn't match anything `skill_name` can roll at
+    all, a data inconsistency worth showing the full honest list for
+    rather than hiding behind a wrong narrowing. Falls back to every
+    original candidate, joined with " or " (e.g. "Minion Damage (Tier:
+    3) or Minion Life (Tier: 3)") rather than guessing which one it is
+    -- same "don't guess, flag it" policy as every other fuzzy-match
+    function in this file. Returns None if visual_key isn't a real known
+    key at all (shouldn't happen given match_support_icon() only ever
+    returns a key from its own reference set, but defensive rather than
+    assumed).
+    """
+    members = _support_visual_key_to_names().get(visual_key)
+    if not members:
+        return None
+    if len(members) > 1 and skill_name:
+        possible = set(_load_supports_by_skills().get(skill_name, {}).get("PossibleSupports", []))
+        culled = [m for m in members if f"{m[0]} {m[2]}" in possible]
+        if culled:
+            members = culled
+    return " or ".join(f"{name} (Tier: {tier})" for name, tier, _roman in members)
+
+
+def _resolve_same_skill_collisions(row_supports: list) -> list:
+    """A skill never rolls the exact same support twice -- confirmed
+    directly against every real ground-truth capture on hand (663 real
+    skill rows, zero literal duplicates). So when N slots in one row
+    share the IDENTICAL unresolved collision string
+    (resolve_support_name()'s "X or Y" formatting) and that collision
+    has exactly N members, each candidate is forced to appear exactly
+    once across those N slots -- a real capture confirmed this isn't
+    hypothetical (a Reanimator's Raise Zombie of Gigantism rolled both
+    "Minion Damage" and "Minion Life" at once, each printed as the same
+    "...or..." string). This can't determine which PHYSICAL slot maps
+    to which name (the image alone never says that), but it CAN fully
+    resolve what the row actually contains -- "Minion Damage (Tier: 1)"
+    once and "Minion Life (Tier: 1)" once, instead of the same
+    ambiguous string printed twice, since a reader cares what the skill
+    has, not which column it's in. Assigned in sorted order for a
+    deterministic result, not because real slot order is known. Only
+    fires when slot count matches candidate count exactly -- e.g. 2
+    slots sharing a 3-way collision stays unresolved, since forcing a
+    guess between which 2 of 3 would be exactly the kind of guessing
+    this project's "don't guess, flag it" policy exists to avoid.
+    """
+    counts = Counter(row_supports)
+    resolved = list(row_supports)
+    for combo, count in counts.items():
+        if " or " not in combo:
+            continue
+        members = combo.split(" or ")
+        if len(members) != count:
+            continue
+        assignment = iter(sorted(members))
+        for i, s in enumerate(resolved):
+            if s == combo:
+                resolved[i] = next(assignment)
+    return resolved
+
+
+# Same fixed badge position/thresholds validated in tools/match_support_icon.py
+# (100% across all 1,971 real validation crops) -- see that file's own
+# docstrings for the full derivation and the bugs found and fixed along
+# the way (a 2D connected-component version that let a real bar silently
+# merge with unrelated icon art, then a color-uniformity gap that let one
+# icon's own gradient-shaded art masquerade as a flat badge bar).
+_SUPPORT_BADGE_Y_FRAC = (0.55, 1.0)
+_SUPPORT_BADGE_X_FRAC = (0.35, 1.0)
+_SUPPORT_TIER_FOR_BAR_COUNT = {1: "i", 2: "ii", 3: "iii"}
+_SUPPORT_BADGE_BAR_HEIGHT_FRAC = 0.35
+_SUPPORT_BADGE_CORE_TRIM = 2
+# Real, reproduced false NEGATIVE found via the campaign shadow-ground-truth
+# audit (see AI_RAMBLINGS.md): two real Tier I "Lightning Penetration"
+# crops have a genuine, correctly-located 11px badge bar (well above the
+# length threshold) that reads core_std 12.0/13.3 -- a subtle
+# highlight/shine gradient in this icon's own bar art, not noise. That's
+# above the original 10.0 ceiling (tuned only against the poison-icon
+# false positive, where real bars measured 0.0-1.7 and the fake art
+# measured 31.7-56.6 -- a sample too narrow to have caught this). Raised
+# to 20.0: comfortably covers both known real-bar ranges (0.0-1.7 and
+# 12.0-13.3) while staying well clear of the fake-art floor (31.7).
+_SUPPORT_BADGE_CORE_STD_MAX = 20.0
+
+
+def _longest_true_run(column) -> tuple:
+    """Returns (start_index, length) of the longest unbroken run of True
+    values in `column`."""
+    best_start = best_len = current_start = current_len = 0
+    for i, value in enumerate(column):
+        if value:
+            if current_len == 0:
+                current_start = i
+            current_len += 1
+            if current_len > best_len:
+                best_start, best_len = current_start, current_len
+        else:
+            current_len = 0
+    return best_start, best_len
+
+
+def _resolve_support_tier_from_badge(crop: Image.Image):
+    """Reads the tier directly off the roman-numeral badge in a fixed
+    corner of a support crop, as a second opinion to match_support_icon's
+    whole-crop embedding guess (which is only 88.3% accurate on exact
+    tier despite 100% icon accuracy -- see tools/match_support_icon.py).
+    Finds each column's longest unbroken run of the badge's gold color,
+    requires the run's trimmed core to also be near-uniform in color
+    (excludes gradient-shaded icon art that happens to be gold and tall),
+    and counts groups of adjacent qualifying columns. Returns "i"/"ii"/
+    "iii", or None if the count isn't exactly 1, 2, or 3."""
+    arr = np.array(crop.convert("RGB")).astype(int)
+    h, w, _ = arr.shape
+    y0, y1 = int(h * _SUPPORT_BADGE_Y_FRAC[0]), int(h * _SUPPORT_BADGE_Y_FRAC[1])
+    x0, x1 = int(w * _SUPPORT_BADGE_X_FRAC[0]), int(w * _SUPPORT_BADGE_X_FRAC[1])
+    roi = arr[y0:y1, x0:x1]
+    r, g, b = roi[..., 0], roi[..., 1], roi[..., 2]
+    mask = (r > 170) & (r > b + 40) & (g > b + 15)
+    roi_h = y1 - y0
+    threshold = roi_h * _SUPPORT_BADGE_BAR_HEIGHT_FRAC
+
+    qualifying_columns = []
+    for x in range(mask.shape[1]):
+        start, length = _longest_true_run(mask[:, x])
+        if length < threshold:
+            qualifying_columns.append(False)
+            continue
+        if length <= _SUPPORT_BADGE_CORE_TRIM * 2:
+            qualifying_columns.append(True)
+            continue
+        core = roi[start + _SUPPORT_BADGE_CORE_TRIM:start + length - _SUPPORT_BADGE_CORE_TRIM, x]
+        qualifying_columns.append(core.std(axis=0).sum() <= _SUPPORT_BADGE_CORE_STD_MAX)
+
+    bar_count = 0
+    previous_qualified = False
+    for qualified in qualifying_columns:
+        if qualified and not previous_qualified:
+            bar_count += 1
+        previous_qualified = qualified
+    return _SUPPORT_TIER_FOR_BAR_COUNT.get(bar_count)
+
+
+def match_support_icon(crop: Image.Image):
+    """Identifies a support-icon crop's (icon, tier) identity: the
+    whole-crop embedding picks the icon family (100% accurate across
+    every real crop on hand), then _resolve_support_tier_from_badge()
+    overrides the tier when it gets a confident reading (see that
+    function's docstring for why the embedding alone under-reads tier
+    specifically). Returns the resolved visual_key (e.g. "brutality_ii"),
+    or None if the model/reference embeddings aren't available, or the
+    best match doesn't clear SUPPORT_MATCH_MIN_SCORE -- an unresolved
+    reading is left unresolved rather than guessed, same policy as
+    every other fuzzy-match function in this file."""
+    session = _load_gem_embedding_session()
+    refs = _load_support_reference_embeddings()
+    if session is None or not refs:
+        return None
+
+    vec = _embed_crop(crop, session)
+    scores = {vk: float(np.dot(vec, ref_vec)) for vk, ref_vec in refs.items()}
+    best = max(scores, key=scores.get)
+    if scores[best] < SUPPORT_MATCH_MIN_SCORE:
+        return None
+
+    badge_tier = _resolve_support_tier_from_badge(crop)
+    if badge_tier is not None:
+        badge_key = f"{best.rsplit('_', 1)[0]}_{badge_tier}"
+        # Checked against _support_visual_key_to_names() (every REAL (icon,
+        # tier) combination in definitions/supports.json), not `refs` (only
+        # what's been harvested so far) -- gating on `refs` here silently
+        # broke every Tier I correction where that tier hadn't been
+        # harvested yet (47 of 54 missing coverage keys are Tier I, see
+        # assets/support_icon_coverage.md), since the badge reader has
+        # nothing to do with whether a reference IMAGE exists for the
+        # corrected tier. Real, reproduced: across 129 real crops from
+        # __captures_campaign, the badge correctly read "i" 117 times, but
+        # this gate let only 2 of those actually come out as tier "i".
+        # resolve_support_name() only needs the visual_key string to look
+        # up a name, not a reference embedding, so this doesn't need one
+        # either.
+        if badge_key in _support_visual_key_to_names():
+            return badge_key
+    return best
+
+
+def _load_supports_grid(path: str = CONFIG_PATH):
+    """Returns (columns, rows) as lists of (start, end) pixel offsets,
+    LOCAL to an already-cropped supports.png (adjusted for the supports
+    region's own absolute origin + INSET) -- same convention and same
+    source data (definitions/mercenary_regions.json's regions.supports.grid)
+    as tools/harvest_support_icons.py's own load_grid(), kept as a
+    separate copy rather than a shared import since tools/ scripts are a
+    distinct offline batch-job category from this live capture path (see
+    that file's own module docstring)."""
+    regions, _calib = load_regions(path)
+    grid = regions["supports"]["grid"]
+    origin_x = regions["supports"]["absolute"]["x0"] + INSET
+    origin_y = regions["supports"]["absolute"]["y0"] + INSET
+    columns = [(c["x0"] - origin_x, c["x1"] - origin_x) for c in grid["columns"]]
+    rows = [(r["y0"] - origin_y, r["y1"] - origin_y) for r in grid["rows"]]
+    return columns, rows
+
+
+def extract_support_names(crop: Image.Image, skill_names: list = None) -> list:
+    """Subdivides an already-cropped supports.png into its fixed 6-row x
+    5-column icon grid and runs match_support_icon()/resolve_support_name()
+    against every occupied cell (an empty cell -- this skill has fewer
+    than 5 equipped supports, or fewer than 6 real skills at all -- is
+    detected the same brightness-variance way tools/harvest_support_icons.py
+    does).
+
+    `skill_names`, if given, should be extract_skill_names()'s own
+    per-row output (record["skills"], row-aligned by construction --
+    both functions independently number rows 0-5 by the same on-screen
+    grid position) -- passed through to resolve_support_name() so a real
+    icon+tier collision can be culled down to only the support(s) that
+    row's own skill can actually roll, per definitions/supports_by_skills.json.
+    Without it, every real candidate in a collision is reported.
+
+    Returns exactly 6 entries (one per skill row, same top-to-bottom
+    order as extract_skill_names -- row 0 = Primary skill slot, etc.,
+    per mercenary_regions.json's grid note), each a list of formatted
+    "<name> (Tier: <n>)" strings in on-screen left-to-right order for
+    that row (empty list if that row has no supports, or no skill at
+    all). An occupied cell that couldn't be confidently matched becomes
+    "Unknown" rather than being silently dropped -- the row still needs
+    an entry at that position, same "don't guess, but don't hide it
+    either" reasoning as resolve_gem_presence's "Unknown (<type>)".
+
+    Each row is passed through _resolve_same_skill_collisions() before
+    being returned -- when one skill's own row has multiple slots
+    sharing the exact same unresolved icon+tier collision, and that
+    collision's member count matches the slot count exactly, a real
+    game constraint (a skill never rolls the same support twice)
+    forces each candidate to appear once, so the row comes back fully
+    resolved instead of repeating the same "X or Y" string per slot.
+    """
+    columns, rows = _load_supports_grid()
+    arr = np.array(crop.convert("RGB")).astype(float)
+    brightness = arr.mean(axis=2)
+
+    result = []
+    for row_idx, (ry0, ry1) in enumerate(rows):
+        skill_name = skill_names[row_idx] if skill_names and row_idx < len(skill_names) else None
+        row_supports = []
+        for cx0, cx1 in columns:
+            if brightness[ry0:ry1, cx0:cx1].std() < SUPPORT_OCCUPIED_STD_THRESHOLD:
+                continue
+            cell = crop.crop((cx0, ry0, cx1, ry1))
+            visual_key = match_support_icon(cell)
+            name = resolve_support_name(visual_key, skill_name) if visual_key else None
+            row_supports.append(name if name else "Unknown")
+        result.append(_resolve_same_skill_collisions(row_supports))
+    return result
 
 
 def process_capture(crops: dict) -> dict:
@@ -1357,15 +2126,19 @@ def process_capture(crops: dict) -> dict:
     infamy, mercenary_type = parse_mercenary_type(extract_text(crops["type_subtype"]))
     combined_type = f"{infamy} {mercenary_type}".strip() if infamy else mercenary_type
     rucksack_slots = ("rucksack_top_left", "rucksack_top_right", "rucksack_bottom_left", "rucksack_bottom_right")
+    skill_names = extract_skill_names(crops["skills"], mercenary_type=combined_type)
     record = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "mercenary_name": mercenary_name,
         "infamy": infamy,
         "mercenary_type": mercenary_type,
         "mercenary_level": extract_level(crops["level"]),
-        # supports region is a multi-item region -- once slot subdivision
-        # is worked out for icon matching, expand this into a per-slot field
-        "skills": extract_skill_names(crops["skills"], mercenary_type=combined_type),
+        "skills": skill_names,
+        # skill_names passed through so a real icon+tier collision (see
+        # resolve_support_name) can be culled to only what each row's own
+        # skill can actually roll, not just reported as every candidate
+        # the icon+tier could ever mean across all 271 skills.
+        "supports": extract_support_names(crops["supports"], skill_names=skill_names),
     }
     record.update(is_gem_present_in_rucksack(crops))
 
@@ -1393,11 +2166,16 @@ def build_warrant_extracted_text(record: dict) -> str:
     warrant.txt) -- built entirely from what's OCR'd off the live
     encounter panel, no need to manually take the warrant item.
 
-    One thing a real warrant.txt has that this doesn't: **Supports** --
-    every skill's linked-support block is omitted entirely. Supports sit
-    in the same hard image-matching problem domain as gems (see
-    AI_RAMBLINGS.md's "Warrant-text alignment for skill/support ground
-    truth"), unsolved as of this function.
+    Supports ARE included now, one line per equipped support under its
+    skill (e.g. "Brutality (Tier: 2)"), from record["supports"] --
+    extract_support_names()'s per-row list, aligned by row INDEX against
+    raw_skills (not the known-pool-filtered `skills` list below), since
+    both extract_skill_names() and extract_support_names() independently
+    number rows 0-5 by the same on-screen grid position. A real icon+tier
+    collision (two or more real supports render pixel-identical, see
+    assets/support_icon_coverage.md) prints as "X (Tier: N) or Y (Tier:
+    N)" rather than guessing; an occupied cell that couldn't be
+    confidently matched prints as "Unknown".
 
     Mercenary Level IS included now (via extract_level() on the "level"
     region) -- if extraction fails (record["mercenary_level"] is None,
@@ -1417,7 +2195,7 @@ def build_warrant_extracted_text(record: dict) -> str:
     console scrolls past it. Every genuinely dropped row is instead
     listed in a trailing comment line after the warrant-mimicking footer
     (so it doesn't corrupt the real-warrant-format body itself),
-    persisted to disk in `warrant_extracted.txt` every time. The full,
+    persisted to disk in `warrant_generated.txt` every time. The full,
     unfiltered OCR output is still available in `record["skills"]` too,
     for anyone debugging a specific capture.
 
@@ -1445,6 +2223,7 @@ def build_warrant_extracted_text(record: dict) -> str:
     combined_type = f"{infamy} {mercenary_type}".strip() if infamy else mercenary_type
     known_pool = set(known_skills_for_type(combined_type)) or set(all_known_skills())
     raw_skills = record.get("skills") or []
+    raw_supports = record.get("supports") or []
     skills = [name for name in raw_skills if name in known_pool]
     unrecognized = [
         name for name in raw_skills
@@ -1465,8 +2244,12 @@ def build_warrant_extracted_text(record: dict) -> str:
     if level is not None:
         lines.append(f"Mercenary Level: {level}")
     lines.append("--------")
-    for skill in skills:
+    for row_idx, skill in enumerate(raw_skills):
+        if skill not in known_pool:
+            continue
         lines.append(skill)
+        if row_idx < len(raw_supports):
+            lines.extend(raw_supports[row_idx])
         lines.append("--------")
     lines.append("Right click this item to view Mercenary details.")
     lines.append("Can be used in a personal Map Device alongside a Map to have this "
@@ -1521,9 +2304,14 @@ def get_current_map(log_path: str = CLIENT_LOG_PATH):
     return None
 
 
-def build_log_row(record: dict, exceptions: str = "") -> dict:
+def build_log_row(record: dict, exceptions: str = "", timestamp: str = "") -> dict:
     """Maps process_capture()'s internal record onto the fixed TSV/console
-    column set: Name, Type, Infamous, Gem 1-4, Map, Exceptions.
+    column set: Timestamp, Name, Type, Infamous, Gem 1-4, Map, Exceptions.
+
+    `timestamp` is the capture folder's own name (see on_capture's `ts`),
+    not record["timestamp"] (a separately-generated ISO string stamped
+    later, mid-OCR) -- using the folder name lets a log row be matched
+    back to its captures/<timestamp>/ directory by exact string equality.
 
     Gem 1-4: counts how many of the four rucksack slots show a gem
     PRESENT (record[slot] is a bool now, from is_gem_present -- see
@@ -1539,10 +2327,12 @@ def build_log_row(record: dict, exceptions: str = "") -> dict:
     confidently told apart still comes back as "Unknown (<type>)" with a
     note, same as before, rather than guessing.
 
-    Exceptions is always blank here -- it's an explicitly manual field
-    (rematch, forced-infamy scarabs, reduced-infamy atlas passives, etc.)
-    that only the person watching the encounter can know; this just
-    reserves the column so it can be filled in by hand afterward.
+    Exceptions defaults to blank here, but on_capture always passes the
+    tag chosen once at script start (see _prompt_for_session_options)
+    -- it's an explicitly manual field (rematch, forced-infamy scarabs,
+    reduced-infamy atlas passives, etc.) that only the person watching
+    the encounter can know, and the same answer applies to every
+    capture for the rest of the run.
     """
     rucksack_slots = (
         "rucksack_top_left", "rucksack_top_right",
@@ -1556,6 +2346,7 @@ def build_log_row(record: dict, exceptions: str = "") -> dict:
     gem_names += [""] * (4 - len(gem_names))  # pad to exactly 4 columns
 
     return {
+        "Timestamp": timestamp,
         "Name": record["mercenary_name"] or "",
         "Type": record["mercenary_type"] or "",
         "Infamous": "Y" if record["infamy"] else "",
@@ -1624,59 +2415,78 @@ def append_log(row: dict, log_path=LOG_PATH, fieldnames=LOG_FIELDNAMES):
 # Manual exception tags -- these describe things only the person watching
 # the encounter can know (a rematch, an atlas passive or scarab changing
 # infamy odds), never something the pipeline could infer from pixels.
+# Asked once at script start (see _prompt_for_session_options) and
+# applied to every capture logged for the rest of the run -- these are
+# session-level facts (an atlas passive's infamy odds don't change
+# encounter to encounter within a single mapping session), not something
+# that needs re-asking per capture.
 EXCEPTION_KEYS = {"r": "Rematch", "n": "No Infamous chance", "i": "Infamy/Renown"}
-EXCEPTION_PROMPT_TIMEOUT = 10  # seconds
-
-# Guards against two captures' tag prompts overlapping. If a second F9
-# lands while an earlier capture is still waiting on R/N/I, the SAME
-# three keys would otherwise end up bound twice over -- a single
-# keypress would then satisfy both prompts at once and tag whichever
-# capture didn't actually match what was pressed. Simplest safe
-# behavior: only one prompt is ever active; a capture that arrives while
-# one is already running just logs with no tag rather than competing
-# for the same key bindings.
-_tagging_lock = threading.Lock()
 
 
-def _prompt_for_exception(timeout: float = EXCEPTION_PROMPT_TIMEOUT) -> str:
-    """Gives the user a short window to tag a just-finished capture with
-    one of EXCEPTION_KEYS before its CSV row is written. Returns the
-    chosen label, or "" if the window times out with nothing pressed.
+CAMPAIGN_KEY = "c"
 
-    Runs in its own thread (see _defer_capture below), not the keyboard
-    library's hook thread -- blocking that thread for up to `timeout`
-    seconds would also delay it noticing the quit key or the next F9
-    press for the same reason a slow/failing capture callback could
-    (see _safe_on_capture).
+
+def _prompt_for_session_options() -> tuple[str, str]:
+    """Asks once, before the capture hotkey is armed, for the single
+    option that applies to every capture this run: an exception tag
+    (EXCEPTION_KEYS) OR campaign mode (CAMPAIGN_KEY) -- mutually
+    exclusive, not two independent settings asked separately. A session
+    dedicated to the campaign shadow-ground-truth workflow (see
+    tools/harvest_campaign_review.py) is never also a Rematch/No
+    Infamous chance/Infamy session in practice, so folding them into one
+    choice keeps this to a single keypress instead of two sequential
+    prompts.
+
+    Returns (session_exception, capture_dir):
+    - session_exception is the chosen EXCEPTION_KEYS label, or "" if
+      ENTER or CAMPAIGN_KEY was pressed instead.
+    - capture_dir is CAMPAIGN_CAPTURE_DIR only if CAMPAIGN_KEY was
+      pressed, else CAPTURE_DIR -- kept in a completely separate
+      directory so campaign captures never mix into the normal
+      captures/ folder the main harvest_support_icons.py scans, which
+      matters here specifically: the whole point is auditing what the
+      icon classifier says against human-read tooltips, so campaign
+      captures must never silently feed the same classifier they're
+      meant to check.
+
+    Blocks indefinitely -- unlike the old per-capture version this
+    replaced, nothing is time-sensitive yet at this point in the script
+    (no captures have started, there's no live gameplay moment to avoid
+    stalling), so there's no reason to time out and risk silently
+    defaulting to "no tag" on a session-wide fact worth getting right.
     """
-    result = {"label": ""}
+    result = {"exception": "", "capture_dir": CAPTURE_DIR}
     event = threading.Event()
 
-    def _make_handler(label):
+    def _make_exception_handler(label):
         def _handler():
-            result["label"] = label
+            result["exception"] = label
             event.set()
         return _handler
 
+    def _campaign_handler():
+        result["capture_dir"] = CAMPAIGN_CAPTURE_DIR
+        event.set()
+
     handles = [
-        keyboard.add_hotkey(key, _make_handler(label))
+        keyboard.add_hotkey(key, _make_exception_handler(label))
         for key, label in EXCEPTION_KEYS.items()
     ]
-    # ENTER ends the wait immediately without changing whatever label (if
-    # any) was already chosen -- lets the write be forced through right
-    # away instead of always sitting out the full timeout.
+    handles.append(keyboard.add_hotkey(CAMPAIGN_KEY, _campaign_handler))
+    # ENTER confirms "none of the above" without changing whatever was
+    # already chosen.
     handles.append(keyboard.add_hotkey("enter", event.set))
 
     key_hint = ", ".join(f"[{k.upper()}]={v}" for k, v in EXCEPTION_KEYS.items())
-    print(f"  Tag this capture? {key_hint} -- [ENTER] to skip wait -- "
-          f"{timeout:.0f}s to respond, otherwise left blank.")
+    print(f"Tag this run? {key_hint}, [{CAMPAIGN_KEY.upper()}]=Campaign encounter "
+          f"(sub-68, saves to {CAMPAIGN_CAPTURE_DIR}/) -- [ENTER] for none.")
 
-    event.wait(timeout=timeout)
+    event.wait()
 
     for handle in handles:
         keyboard.remove_hotkey(handle)
 
-    return result["label"]
+    return result["exception"], result["capture_dir"]
 
 
 def copy_row_to_clipboard(row: dict):
@@ -1695,22 +2505,37 @@ def copy_row_to_clipboard(row: dict):
         pass
 
 
-def _defer_capture(record: dict, row: dict, session_dir: str):
-    """Waits for an optional exception tag, then writes and prints the
-    final row. Runs off the keyboard hook thread entirely (see the
-    docstrings on _prompt_for_exception and _safe_on_capture for why
-    that matters) -- daemon=True so a still-pending tag prompt can't
-    keep the process alive after the quit key is pressed.
-    """
-    try:
-        if _tagging_lock.acquire(blocking=False):
-            try:
-                row["Exceptions"] = _prompt_for_exception()
-            finally:
-                _tagging_lock.release()
-        else:
-            print("  (another capture was triggered -- logging this one without exception)")
+def on_capture(crop_plan, session_exception: str, capture_dir: str = CAPTURE_DIR):
+    """Captures, crops, OCRs, and logs one encounter. `session_exception`
+    and `capture_dir` are the two mutually-exclusive outcomes of the
+    single choice made once at script start (see
+    _prompt_for_session_options) and applied to every row this run --
+    no per-capture prompt or deferral needed anymore, so this all runs
+    synchronously on the keyboard hook thread (see _safe_on_capture).
+    `capture_dir` is CAPTURE_DIR unless campaign mode was chosen, in
+    which case it's CAMPAIGN_CAPTURE_DIR and `session_exception` is ""
+    -- everything else about this function is identical either way;
+    only where the files land (and whether a tag is logged) differs."""
+    full = capture_full_screen()
 
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    session_dir = os.path.join(capture_dir, ts)
+    os.makedirs(session_dir, exist_ok=True)
+
+    crops = {}
+    for region_name, box in crop_plan.items():
+        crop = full.crop(box)
+        crops[region_name] = crop
+        crop.save(os.path.join(session_dir, f"{region_name}.png"))
+
+    record = process_capture(crops)
+    row = build_log_row(record, exceptions=session_exception, timestamp=ts)
+
+    warrant_generated_path = os.path.join(session_dir, "warrant_generated.txt")
+    with open(warrant_generated_path, "w", newline="\n") as f:
+        f.write(build_warrant_extracted_text(record))
+
+    try:
         append_log(row)
         copy_row_to_clipboard(row)
         print(f"[{record['timestamp']}] captured -> {session_dir}  " +
@@ -1721,30 +2546,7 @@ def _defer_capture(record: dict, row: dict, session_dir: str):
         print("Logging this capture failed (see traceback above).")
 
 
-def on_capture(crop_plan):
-    full = capture_full_screen()
-
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    session_dir = os.path.join(CAPTURE_DIR, ts)
-    os.makedirs(session_dir, exist_ok=True)
-
-    crops = {}
-    for region_name, box in crop_plan.items():
-        crop = full.crop(box)
-        crops[region_name] = crop
-        crop.save(os.path.join(session_dir, f"{region_name}.png"))
-
-    record = process_capture(crops)
-    row = build_log_row(record)  # Exceptions starts blank; _defer_capture may fill it
-
-    warrant_extracted_path = os.path.join(session_dir, "warrant_extracted.txt")
-    with open(warrant_extracted_path, "w", newline="\n") as f:
-        f.write(build_warrant_extracted_text(record))
-
-    threading.Thread(target=_defer_capture, args=(record, row, session_dir), daemon=True).start()
-
-
-def _safe_on_capture(crop_plan):
+def _safe_on_capture(crop_plan, session_exception: str, capture_dir: str = CAPTURE_DIR):
     """Wraps on_capture so a failure during any single capture (a bad OCR
     read, an icon-match error, a file-write hiccup) can never propagate
     into the keyboard library's own internal event-dispatch thread. An
@@ -1756,7 +2558,7 @@ def _safe_on_capture(crop_plan):
     means a bad capture gets logged and skipped instead of taking the
     whole listener down with it."""
     try:
-        on_capture(crop_plan)
+        on_capture(crop_plan, session_exception, capture_dir)
     except Exception:
         import traceback
         traceback.print_exc()
@@ -1774,10 +2576,13 @@ def main():
               f"current screen is {current_res}. Crops will likely be misaligned -- "
               f"re-run the calibration step at this resolution.")
 
-    print(f"Ready. Press [{HOTKEY.upper()}] over a paused mercenary encounter to capture. "
+    session_exception, capture_dir = _prompt_for_session_options()
+
+    mode_note = f" (campaign mode -- saving to {capture_dir}/)" if capture_dir == CAMPAIGN_CAPTURE_DIR else ""
+    print(f"Ready{mode_note}. Press [{HOTKEY.upper()}] over a paused mercenary encounter to capture. "
           f"Press Ctrl+C to quit.")
 
-    keyboard.add_hotkey(HOTKEY, lambda: _safe_on_capture(crop_plan))
+    keyboard.add_hotkey(HOTKEY, lambda: _safe_on_capture(crop_plan, session_exception, capture_dir))
 
     # A plain sleep loop rather than a keyboard-registered quit hotkey --
     # Ctrl+C (SIGINT) is handled by Python's own default signal handling
