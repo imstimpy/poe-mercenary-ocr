@@ -1,0 +1,20 @@
+{
+  "suspected_nonlive": [
+    {
+      "reason": "Zero warrants show any tier of this family across all 20 skills that structurally list it as possible, checked directly on pathofexile.com/trade -- also zero occurrences across 153 real ground-truth-certain equipped support slots in this project's own captures. Not proven impossible, just strongly suspicious. See AI_RAMBLINGS.md's Mitigation Ignore investigation for the full evidence.",
+      "names": ["Lesser Mitigation Ignore", "Mitigation Ignore", "Greater Mitigation Ignore"]
+    },
+    {
+      "reason": "Leech (II) and Greater Leech (III) are both confirmed real (ground_truth, multiple times each) and both found on pathofexile.com/trade -- but Lesser Leech shows on neither. Every one of the 58 distinct crops (192 total occurrences) captured from its 5 possible skills resolved to a different, definite identity; no ambiguous crop lists it as a candidate either. Only the Lesser tier is suspected -- II/III are proven real, not part of this flag. See AI_RAMBLINGS.md.",
+      "names": ["Lesser Leech"]
+    },
+    {
+      "reason": "This family only has two tiers -- Lesser Spell Cascade (I) and Spell Cascade (III), no II at all. Lesser Spell Cascade is proven real many times over (ground_truth) and shows on pathofexile.com/trade. Spell Cascade (III) shows on neither: every one of the 79 distinct crops (294 total occurrences) captured from its 9 possible skills resolved to a different, definite identity, and no ambiguous crop lists it as a candidate. Tier III items don't suffer the low-level trade-visibility bias that affects Tier I (see AI_RAMBLINGS.md's taxonomy), so this trade absence is real signal, not noise -- especially paired with the sibling tier showing on trade fine. See AI_RAMBLINGS.md.",
+      "names": ["Spell Cascade"]
+    },
+    {
+      "reason": "Zero warrants show this on pathofexile.com/trade, and every one of the 45 distinct crops (150 total occurrences, all ground_truth) captured from its 3 possible skills resolved to a different, definite identity -- no ambiguous crop lists it as a candidate either. Tier III items don't suffer the low-level trade-visibility bias that affects Tier I, so this trade absence is real signal, not noise. See AI_RAMBLINGS.md.",
+      "names": ["Greater Sacred Wisps"]
+    }
+  ]
+}

@@ -27,9 +27,9 @@ These bespoke tools extract assets from the game data and transform them into a 
    - Reads: `captures/`, `__captures_*/`, and the hand-maintained `tier_notes.json` / `manual_labels.json` overrides alongside its output
    - Writes: `assets/harvested_supports/`
 
- - `generate_support_coverage_report.py` - Regenerates the missing/weak support-icon coverage report. Run after `harvest_support_icons.py`.
+ - `generate_support_coverage_report.py` - Regenerates the missing/weak support-icon coverage report. Run after `harvest_support_icons.py`. Splits missing keys that structurally can't or probably won't ever get a captured reference into their own groups (a data-proven zero-breadth group, and a hand-flagged "suspected non-live" group -- see `assets/support_icon_coverage_notes.json`) instead of cluttering the main hunting-targets table with them.
    - Run: `python generate_support_coverage_report.py` (no arguments; run from `tools/`)
-   - Reads: `definitions/supports.json`, `definitions/skills_by_mercenary.json`, `definitions/supports_by_skills.json`, `assets/harvested_supports/manifest.json`
+   - Reads: `definitions/supports.json`, `definitions/skills_by_mercenary.json`, `definitions/supports_by_skills.json`, `assets/harvested_supports/manifest.json`, `assets/support_icon_coverage_notes.json` (hand-maintained, optional)
    - Writes: `assets/support_icon_coverage.md`
 
  - `match_support_icon.py` - Support-icon classifier accuracy report against real `warrant.txt` ground truth (100% on every real crop on hand). The classifier itself is promoted into `capture_pipeline.py` (`match_support_icon`/`extract_support_names`); this script is now just its validation/regression report.
@@ -46,6 +46,30 @@ These bespoke tools extract assets from the game data and transform them into a 
    - Run: `python generate_support_collision_report.py` (no arguments; run from `tools/`)
    - Reads: `definitions/supports.json`, `definitions/supports_by_skills.json`
    - Writes: `assets/support_icon_collisions.md`
+
+ - `generate_manual_labeling_page.py` - Generates a local, offline HTML review page for identifying support crops `harvest_support_icons.py` couldn't resolve on its own (real crops from non-warrant captures, narrowed to a short candidate list but not to one). Click a crop's correct support and copy the resulting JSON into `manual_labels.json` -- the one mechanism that survives a re-harvest; renaming the crop files directly does not (`harvest_support_icons.py` deletes and rebuilds every top-level PNG on each run). Not published anywhere -- these are real GGG game assets (see `THIRD_PARTY_NOTICES.md`), so this stays a local file you open directly in a browser.
+   - Run: `python generate_manual_labeling_page.py` (no arguments; run from `tools/`)
+   - Reads: `assets/harvested_supports/manifest.json`
+   - Writes: `assets/harvested_supports/manual_review.html` (gitignored -- regenerate it fresh rather than reusing a stale copy)
+
+ - `harvest_campaign_review.py` - Isolated, icon-recognition-free reviewer for `captures_campaign/` only (never `captures/` or any `__captures_*/` archive -- structurally excluded by `harvest_support_icons.py`'s own glob patterns, not just convention). Builds an independent "shadow ground truth" for sub-68 mercenaries by having a human read each support's real name/tier off the in-game tooltip; candidates shown are anchored only to the contributing skill(s)' real `PossibleSupports`, never to icon matching. Never touches `assets/harvested_supports/`, `manual_labels.json`, `tier_notes.json`, or the reference embeddings -- the whole point is auditing that pipeline independently of it. See `.claude/skills/campaign-review/SKILL.md` for the live capture-and-review loop this is meant to run inside.
+   - Run: `python harvest_campaign_review.py` (no arguments; run from `tools/` or the project root; safe to run repeatedly)
+   - Reads: `captures_campaign/*/supports.png` + `warrant_generated.txt`, `definitions/supports_by_skills.json`, `definitions/supports.json`, `assets/harvested_supports/campaign_promotions.json` (read-only -- a promoted hash counts as already answered, see `promote_campaign_truth.py` below), and the system clipboard (for a completed review page's copied answers)
+   - Writes: `assets/campaign_review/manual_truth.json` (the actual data -- not gitignored), `assets/campaign_review/review.html` + `crops/*.png` (both gitignored, regenerated fresh each run)
+
+ - `audit_campaign_truth.py` - Read-only audit: checks `capture_pipeline.match_support_icon()` against `manual_truth.json`, the independent shadow ground truth `harvest_campaign_review.py` built. This is the actual point of the whole campaign-review pipeline -- `match_support_icon.py`'s own 100% figure is measured almost entirely on Tier II/III data, since a real warrant.txt is structurally impossible below level 68.
+   - Run: `python audit_campaign_truth.py` (no arguments; run from `tools/` or the project root)
+   - Reads: `assets/campaign_review/manual_truth.json`, `assets/campaign_review/crops/*.png` (regenerate first with `harvest_campaign_review.py` if a crop file is missing)
+
+ - `promote_campaign_truth.py` - Deliberately promotes a *specific* campaign shadow-ground-truth identification into the production catalog, for a real (icon, tier) gap that may never show up in a warrant-backed capture at all (see `assets/support_icon_coverage.md`'s missing list, skewed toward Tier I). A campaign identification is read straight off the real tooltip with zero icon-matching involvement -- actually cleaner provenance than a `manual_labels.json` entry. Removes the promoted hash from `manual_truth.json` (its new home is `campaign_promotions.json`) so it stops counting toward `audit_campaign_truth.py`'s numbers once it's also a reference image -- auditing the classifier against its own reference would be circular. Re-run `harvest_support_icons.py` afterward to fold it into `manifest.json`.
+   - Run: `python promote_campaign_truth.py <hash-or-prefix> [<hash-or-prefix> ...]` (run from `tools/` or the project root)
+   - Reads: `assets/campaign_review/manual_truth.json`, `assets/campaign_review/crops/*.png`, `definitions/supports.json`
+   - Writes: `assets/harvested_supports/campaign_promotions.json` + `campaign_promoted/<hash>.png` (both committed), `assets/campaign_review/manual_truth.json` (removes each promoted hash)
+
+ - `generate_campaign_audit_coverage.py` - Tracks, per Tier I (icon, tier) key in the production catalog, whether it's ever been independently confirmed through the campaign UI (`manual_truth.json`/`campaign_promotions.json` hash match) versus only trusted via `ground_truth`/`embedding_confirmed` self-resolution. Found a real, sizeable gap this way once already (see `AI_RAMBLINGS.md`) -- this makes that an ongoing, regenerable number instead of a one-off check. Run after `harvest_support_icons.py` or `harvest_campaign_review.py` change either input.
+   - Run: `python generate_campaign_audit_coverage.py` (no arguments; run from `tools/` or the project root)
+   - Reads: `assets/harvested_supports/manifest.json`, `assets/campaign_review/manual_truth.json`, `assets/harvested_supports/campaign_promotions.json`
+   - Writes: `assets/campaign_audit_coverage.md`
 
  - `export_gem_embedding_model.py` - Builds the gem-presence embedding model. Needs `requirements-dev.txt` installed (not part of normal setup -- see `DEPENDENCIES.md`).
    - Run: `python export_gem_embedding_model.py` (no arguments; run from `tools/`)
@@ -153,6 +177,8 @@ Pending skill support assets are stored as-is, directly from game data extractio
 The display-name -> raw asset-name lookup IS automated. See [Mercenary and skill definitions](#mercenary-and-skill-definitions)
 
 Found in art/2ditems/gems/support/<support>.dds where `../definitions/supports.json` provides the display-name -> raw asset-name mapping.
+
+**Possible future direction (not started, not planned yet):** a fully scripted, portable alternative to this project's current live-capture-based support catalog (`assets/harvested_supports/`) -- one game-extracted icon reference per icon (not per tier, since the tier badge is a render-time overlay the raw asset doesn't have -- see `harvest_support_icons.py`'s `visual_key_for_name()` docstring), with tier resolved at classification time by the already-built, reference-independent `_resolve_support_tier_from_badge()` in `capture_pipeline.py`. Immune to resolution/UI changes and portable to any user's install, unlike the current corpus. [jcmoyer/PoET](https://github.com/jcmoyer/PoET) and PyPoE reportedly have command-line interfaces (unlike VisualGGPK2's GUI-only export), which could make the full chain -- ppk extraction, asset-path lookup from the already-exported mercenary skill JSON, `.dds`-to-`.png` conversion -- scriptable end to end instead of done by hand. Unverified (neither tool has been tried against this specific extraction yet).
 
 Exports:
  - `data/mercenarysupports.datc64`

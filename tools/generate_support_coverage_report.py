@@ -16,11 +16,25 @@ into each name (definitions/supports.json's own keys never carry that
 suffix -- confirmed directly, e.g. "Lesser Increased Area of Effect" vs.
 PossibleSupports' "Lesser Increased Area of Effect I").
 
+A missing key can fall into one of two special groups instead of the
+main hunting-targets table -- both "don't bother capturing this," but
+with very different confidence. "Confirmed zero breadth" is computed
+fresh from the extracted data itself every run (a support this proves
+appears in NO skill's PossibleSupports at all). "Suspected non-live" is
+the opposite kind of evidence -- a support WITH real structural
+breadth, hand-flagged in support_icon_coverage_notes.json after direct
+investigation found zero real-world occurrences despite that breadth
+(see AI_RAMBLINGS.md) -- never proven impossible, just strongly
+suspicious, and disclosed as exactly that, not silently merged with the
+proven category.
+
 Usage:
     python generate_support_coverage_report.py
 
 Reads: definitions/supports.json, definitions/skills_by_mercenary.json,
-    definitions/supports_by_skills.json, assets/harvested_supports/manifest.json
+    definitions/supports_by_skills.json, assets/harvested_supports/manifest.json,
+    assets/support_icon_coverage_notes.json (hand-maintained, optional --
+    see this module's docstring above)
 Writes: assets/support_icon_coverage.md
 """
 import json
@@ -33,6 +47,7 @@ SUPPORTS_PATH = os.path.join(PROJECT_ROOT, "definitions", "supports.json")
 MERC_SKILLS_PATH = os.path.join(PROJECT_ROOT, "definitions", "skills_by_mercenary.json")
 SUPPORTS_BY_SKILLS_PATH = os.path.join(PROJECT_ROOT, "definitions", "supports_by_skills.json")
 MANIFEST_PATH = os.path.join(PROJECT_ROOT, "assets", "harvested_supports", "manifest.json")
+NOTES_PATH = os.path.join(PROJECT_ROOT, "assets", "support_icon_coverage_notes.json")
 OUTPUT_PATH = os.path.join(PROJECT_ROOT, "assets", "support_icon_coverage.md")
 
 _TIER_SUFFIX_RE = re.compile(r"\s+(I|II|III)$")
@@ -40,6 +55,31 @@ _TIER_SUFFIX_RE = re.compile(r"\s+(I|II|III)$")
 
 def _strip_tier_suffix(name: str) -> str:
     return _TIER_SUFFIX_RE.sub("", name)
+
+
+def _load_suspected_nonlive(supports: dict) -> list:
+    """Hand-maintained (never touched by this script) list of {"reason":
+    str, "names": [exact literal supports.json names]} groups -- see this
+    module's docstring for why this is kept separate from the
+    data-proven zero-breadth check. A typo'd name is warned about and
+    dropped rather than silently accepted. Missing file is not an
+    error."""
+    if not os.path.isfile(NOTES_PATH):
+        return []
+    with open(NOTES_PATH, encoding="utf-8") as f:
+        notes = json.load(f)
+    groups = []
+    for group in notes.get("suspected_nonlive", []):
+        names = []
+        for n in group.get("names", []):
+            if n not in supports:
+                print(f"  WARNING: {NOTES_PATH} names {n!r}, but that's not a real "
+                      f"definitions/supports.json key -- check for a typo. Ignoring.")
+                continue
+            names.append(n)
+        if names:
+            groups.append({"reason": group.get("reason", ""), "names": names})
+    return groups
 
 
 def _skill_pool(entry: dict) -> list:
@@ -96,19 +136,42 @@ def generate():
         elif "manual" in srcs:
             manual_only += 1
 
+    suspected_nonlive_groups = _load_suspected_nonlive(supports)
+    suspected_nonlive_names = {n for g in suspected_nonlive_groups for n in g["names"]}
+
     rows = []
+    hunting_rows = []
     tier1_keys = 0
     for key in missing:
         names = needed[key]
-        if supports[names[0]]["tier_roman"] == "I":
+        tier_roman = supports[names[0]]["tier_roman"]
+        if tier_roman == "I":
             tier1_keys += 1
         best_breadth, best_example = 0, None
         for name in names:
             breadth, example = _breadth_and_example(name, skill_data, merc_data)
             if breadth > best_breadth:
                 best_breadth, best_example = breadth, example
-        rows.append((best_breadth, " / ".join(names), best_example))
+        # Always show the tier explicitly, even though most names carry it
+        # in a "Lesser "/"Greater " prefix -- a handful of real families
+        # (Spell Cascade, Second Wind, Knockback, Multiple Projectiles...)
+        # have a Tier III (or I) member with NO prefix at all, which reads
+        # as ambiguous/looks-like-Tier-II without this (confirmed a real
+        # point of confusion: "Spell Cascade" alone was mistaken for the
+        # in-between tier when it's actually this family's Tier III).
+        label = f"{' / '.join(names)} (Tier {tier_roman})"
+        row = (best_breadth, label, best_example, names)
+        rows.append(row)
+        # Zero-breadth (proven from the data itself) and suspected-nonlive
+        # (hand-flagged after direct investigation, see
+        # support_icon_coverage_notes.json) both get their own dedicated
+        # group below instead of cluttering the main hunting-targets table
+        # with entries nobody should actually spend capture time chasing.
+        if best_breadth == 0 or (suspected_nonlive_names & set(names)):
+            continue
+        hunting_rows.append(row)
     rows.sort(key=lambda r: -r[0])
+    hunting_rows.sort(key=lambda r: -r[0])
 
     lines = []
     lines.append("# Support icon coverage checklist")
@@ -158,26 +221,52 @@ def generate():
     lines.append("")
     lines.append("| Support | Example skill | Example mercenary | Skills that can roll it |")
     lines.append("|---|---|---|---|")
-    for breadth, label, example in rows:
+    for breadth, label, example, _names in hunting_rows:
         ex_skill, ex_merc = example if example else ("(none)", "(none)")
         lines.append(f"| {label} | {ex_skill} | {ex_merc} | {breadth} |")
     lines.append("")
 
-    zero_breadth = [label for breadth, label, _ in rows if breadth == 0]
-    if zero_breadth:
-        lines.append("## Special case: zero-breadth supports")
+    zero_breadth = [label for breadth, label, _example, _names in rows if breadth == 0]
+    suspected_rows_by_group = [
+        (g["reason"], [label for _breadth, label, _example, names in rows if set(names) & set(g["names"])])
+        for g in suspected_nonlive_groups
+    ]
+    if zero_breadth or any(labels for _, labels in suspected_rows_by_group):
+        lines.append("## Supports unlikely to ever get a captured reference")
         lines.append("")
-        lines.append("The following don't appear in ANY skill's `PossibleSupports` in the")
-        lines.append("current extracted data -- not rare, structurally unobtainable as far as")
-        lines.append("this data shows. Not worth hunting for; worth a second look at whether")
-        lines.append("these are actually live in the current game version, or leftover/disabled")
-        lines.append("entries in the source data.")
-        lines.append("")
-        for label in zero_breadth:
-            lines.append(f"- {label}")
+        lines.append("Two groups, excluded from the hunting-targets table above -- not because")
+        lines.append("they can't technically go there, but because continuing to spend capture")
+        lines.append("time on them isn't worthwhile. Kept separate because they rest on very")
+        lines.append("different evidence: one proven directly from the extracted data, the other")
+        lines.append("a hand-flagged suspicion from external investigation. See this script's own")
+        lines.append("module docstring.")
         lines.append("")
 
-    narrow = [(breadth, label) for breadth, label, _ in rows if 0 < breadth <= 2]
+        if zero_breadth:
+            lines.append("### Confirmed zero breadth (proven from extracted data)")
+            lines.append("")
+            lines.append("The following don't appear in ANY skill's `PossibleSupports` in the")
+            lines.append("current extracted data -- not rare, structurally unobtainable as far as")
+            lines.append("this data shows. Worth a second look at whether these are actually live")
+            lines.append("in the current game version, or leftover/disabled entries in the source")
+            lines.append("data.")
+            lines.append("")
+            for label in zero_breadth:
+                lines.append(f"- {label}")
+            lines.append("")
+
+        live_groups = [(reason, labels) for reason, labels in suspected_rows_by_group if labels]
+        if live_groups:
+            lines.append("### Suspected non-live (real breadth, no confirmed real-world hits)")
+            lines.append("")
+            for reason, labels in live_groups:
+                lines.append(reason)
+                lines.append("")
+                for label in labels:
+                    lines.append(f"- {label}")
+                lines.append("")
+
+    narrow = [(breadth, label) for breadth, label, _example, _names in hunting_rows if 0 < breadth <= 2]
     if narrow:
         lines.append("## Notes")
         lines.append("")

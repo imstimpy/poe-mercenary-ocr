@@ -19,15 +19,15 @@ combinations** across the 265 real supports.
 
 ```
 159 total (icon, tier) keys needed
-105 covered   (93 confidently labeled from ground truth alone,
+148 covered   (93 confidently labeled from ground truth alone,
                0 only resolved with a manual_labels.json visual ID,
-               12 genuinely ambiguous -- two+ different real supports
+               16 genuinely ambiguous -- two+ different real supports
                proven to share pixels, not an unresolved gap; see
                AI_RAMBLINGS.md's Minion Damage/Minion Life writeup)
- 54 missing entirely -- no harvested crop at all yet
+ 11 missing entirely -- no harvested crop at all yet
 ```
 
-**47 of 54 missing keys are tier "I" (Lesser)**, 7 are other tiers. Real captures skew toward high-tier rolls (see AI_RAMBLINGS.md's `SupportCountTier` section), so the low end of a support's own trio is inherently the rarest roll to catch on camera. For most of these you already have coverage of the SAME support's other tiers from the SAME kind of skill/mercenary -- nothing new to hunt for, just more captures of what you're already getting.
+**4 of 11 missing keys are tier "I" (Lesser)**, 7 are other tiers. Real captures skew toward high-tier rolls (see AI_RAMBLINGS.md's `SupportCountTier` section), so the low end of a support's own trio is inherently the rarest roll to catch on camera. For most of these you already have coverage of the SAME support's other tiers from the SAME kind of skill/mercenary -- nothing new to hunt for, just more captures of what you're already getting.
 
 ## Missing crops -- hunting targets
 
@@ -38,75 +38,52 @@ single example is just a place to start, not the only source. Sorted easiest
 
 | Support | Example skill | Example mercenary | Skills that can roll it |
 |---|---|---|---|
-| Lesser Increased Area of Effect | Conductivity | Stormhand | 143 |
-| Lesser Faster Attacks | Charged Dash of the Arcane | Storming Zealot | 87 |
-| Lesser More Duration | Conductivity | Stormhand | 79 |
-| Lesser Cooldown Recovery / Lesser Shock Chance / Lesser DoT Multiplier / Lesser Chaos Penetration | Greater Stormcall | Stormhand | 67 |
-| Multiple Projectiles | Spark | Stormhand | 65 |
-| Lesser Faster Casting | Spark | Stormhand | 60 |
-| Lesser Brutality | Reap | Sanguimancer | 58 |
-| Lesser Critical Chance | Greater Shock Nova | Stormhand | 34 |
-| Lesser Elemental Damage with Attacks | Vaal Glacial Hammer | Winter Deacon | 32 |
-| Lesser Faster Projectiles | Spark | Stormhand | 30 |
-| Lesser Chain | Orb of Storms | Stormhand | 27 |
-| Lesser Fire Penetration | Flameblast | Flamehand | 25 |
-| Lesser Concentrated Effect | Reap | Sanguimancer | 23 |
-| Lesser Lightning Penetration | Spark | Stormhand | 23 |
-| Lesser Pulverise | Ground Slam | Earthshaker | 23 |
-| Lesser Added Lightning | Arc | Stormhand | 21 |
-| Lesser Critical Damage | Soulrend of Reaping | Cruel Mistress | 20 |
-| Lesser Mitigation Ignore | Reap | Sanguimancer | 20 |
-| Mitigation Ignore | Reap | Sanguimancer | 20 |
-| Greater Mitigation Ignore | Reap | Sanguimancer | 20 |
-| Lesser Cold Penetration | Frostbolt | Frosthand | 19 |
-| Lesser Pierce | Spark | Stormhand | 19 |
-| Lesser Swift Affliction | Vortex | Frosthand | 19 |
-| Lesser Added Cold | Ice Nova | Frosthand | 18 |
-| Lesser Ironwood / Lesser Physical as Extra | Unnerving Blast | Storming Zealot | 17 |
-| Lesser Impale Chance | Earthquake of Amplification | Earthshaker | 15 |
-| Lesser Melee Physical Damage | Raise Zombie of Falling | Reanimator | 14 |
-| Lesser Added Chaos | Greater Soulrend | Withertouch | 13 |
-| Lesser Ailment Damage | Flameblast | Flamehand | 13 |
-| Lesser Freeze Chance / Lesser Throwing Speed / Lesser Trigger Radius | Smoke Mine | Blade Ambusher | 13 |
-| Lesser Elemental Focus | Spark | Stormhand | 12 |
-| Lesser Minion Damage / Lesser Minion Life | Summon Skeletons | Reanimator | 12 |
-| Lesser Trap and Mine Damage | Vaal Lightning Trap | Shock Ambusher | 12 |
-| Lesser Added Fire | Wave of Conviction of Trarthus | Flaming Charlatan | 11 |
-| Lesser Ignite Chance | Flameblast | Flamehand | 11 |
-| Lesser Hypothermia | Vortex | Frosthand | 11 |
-| Lesser Wither on Hit | Soulrend of Reaping | Cruel Mistress | 11 |
-| Lesser Raging Cry / Lesser Strike Distance | Glacial Hammer | Winter Deacon | 10 |
-| Lesser Chance to Bleed | Triggerblades | Shattersword | 9 |
-| Spell Cascade | Greater Stormcall | Stormhand | 9 |
-| Lesser Slower Projectiles | Rolling Magma | Flamehand | 8 |
-| Lesser Ailment Effect | Vortex | Frosthand | 8 |
-| Lesser Chance to Poison | Chaotic Shot | Toxicologist | 7 |
-| Lesser Less Duration | Greater Stormcall | Stormhand | 7 |
-| Lesser Warcry Speed | Intimidating Cry | Earthshaker | 7 |
-| Lesser Leech | Ground Slam | Earthshaker | 5 |
-| Lesser Rage on Hit | Cleave | Ripper | 5 |
-| Lesser Infused Channelling | Flameblast | Flamehand | 4 |
-| Greater Sacred Wisps | Kinetic Bolt | Kineticist | 3 |
-| Lesser Generosity | Smite | Warpriest | 1 |
-| Greater Generosity | Smite | Warpriest | 1 |
-| Lesser Excommunicate | (none) | (none) | 0 |
-| Excommunicate | (none) | (none) | 0 |
-| Greater Excommunicate | (none) | (none) | 0 |
+| Lesser Generosity (Tier I) | Smite | Warpriest | 1 |
+| Greater Generosity (Tier III) | Smite | Warpriest | 1 |
 
-## Special case: zero-breadth supports
+## Supports unlikely to ever get a captured reference
+
+Two groups, excluded from the hunting-targets table above -- not because
+they can't technically go there, but because continuing to spend capture
+time on them isn't worthwhile. Kept separate because they rest on very
+different evidence: one proven directly from the extracted data, the other
+a hand-flagged suspicion from external investigation. See this script's own
+module docstring.
+
+### Confirmed zero breadth (proven from extracted data)
 
 The following don't appear in ANY skill's `PossibleSupports` in the
 current extracted data -- not rare, structurally unobtainable as far as
-this data shows. Not worth hunting for; worth a second look at whether
-these are actually live in the current game version, or leftover/disabled
-entries in the source data.
+this data shows. Worth a second look at whether these are actually live
+in the current game version, or leftover/disabled entries in the source
+data.
 
-- Lesser Excommunicate
-- Excommunicate
-- Greater Excommunicate
+- Lesser Excommunicate (Tier I)
+- Excommunicate (Tier II)
+- Greater Excommunicate (Tier III)
+
+### Suspected non-live (real breadth, no confirmed real-world hits)
+
+Zero warrants show any tier of this family across all 20 skills that structurally list it as possible, checked directly on pathofexile.com/trade -- also zero occurrences across 153 real ground-truth-certain equipped support slots in this project's own captures. Not proven impossible, just strongly suspicious. See AI_RAMBLINGS.md's Mitigation Ignore investigation for the full evidence.
+
+- Lesser Mitigation Ignore (Tier I)
+- Mitigation Ignore (Tier II)
+- Greater Mitigation Ignore (Tier III)
+
+Leech (II) and Greater Leech (III) are both confirmed real (ground_truth, multiple times each) and both found on pathofexile.com/trade -- but Lesser Leech shows on neither. Every one of the 58 distinct crops (192 total occurrences) captured from its 5 possible skills resolved to a different, definite identity; no ambiguous crop lists it as a candidate either. Only the Lesser tier is suspected -- II/III are proven real, not part of this flag. See AI_RAMBLINGS.md.
+
+- Lesser Leech (Tier I)
+
+This family only has two tiers -- Lesser Spell Cascade (I) and Spell Cascade (III), no II at all. Lesser Spell Cascade is proven real many times over (ground_truth) and shows on pathofexile.com/trade. Spell Cascade (III) shows on neither: every one of the 79 distinct crops (294 total occurrences) captured from its 9 possible skills resolved to a different, definite identity, and no ambiguous crop lists it as a candidate. Tier III items don't suffer the low-level trade-visibility bias that affects Tier I (see AI_RAMBLINGS.md's taxonomy), so this trade absence is real signal, not noise -- especially paired with the sibling tier showing on trade fine. See AI_RAMBLINGS.md.
+
+- Spell Cascade (Tier III)
+
+Zero warrants show this on pathofexile.com/trade, and every one of the 45 distinct crops (150 total occurrences, all ground_truth) captured from its 3 possible skills resolved to a different, definite identity -- no ambiguous crop lists it as a candidate either. Tier III items don't suffer the low-level trade-visibility bias that affects Tier I, so this trade absence is real signal, not noise. See AI_RAMBLINGS.md.
+
+- Greater Sacred Wisps (Tier III)
 
 ## Notes
 
-- **Lesser Generosity** is a genuinely narrow case (1 skill option total) -- everything else missing has more independent skill options.
-- **Greater Generosity** is a genuinely narrow case (1 skill option total) -- everything else missing has more independent skill options.
+- **Lesser Generosity (Tier I)** is a genuinely narrow case (1 skill option total) -- everything else missing has more independent skill options.
+- **Greater Generosity (Tier III)** is a genuinely narrow case (1 skill option total) -- everything else missing has more independent skill options.
 - This list needs a re-run once you've captured more; re-run `harvest_support_icons.py` then this script rather than editing this table by hand as gaps close.

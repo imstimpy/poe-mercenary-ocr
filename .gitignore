@@ -5,6 +5,18 @@
 # from captures/, not read by anything (see export_support_reference_embeddings.py)
 assets/harvested_supports/variants/
 
+# Generated review page for manual support identification -- regenerated
+# fresh from manifest.json each time (see generate_manual_labeling_page.py),
+# stale the moment manual_labels.json changes
+assets/harvested_supports/manual_review.html
+
+# Same for the isolated campaign shadow-ground-truth reviewer -- crops/
+# and review.html regenerate fresh from captures_campaign/ each run (see
+# tools/harvest_campaign_review.py); manual_truth.json is the actual
+# hand-curated data and is NOT ignored.
+assets/campaign_review/review.html
+assets/campaign_review/crops/
+
 # Text logs
 logs/
 

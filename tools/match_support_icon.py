@@ -135,10 +135,16 @@ _BADGE_BAR_HEIGHT_FRAC = 0.35
 _BADGE_CORE_TRIM = 2
 # Combined per-channel std-dev (R+G+B) within a run's trimmed core, above
 # which it's judged gradient-shaded art rather than a flat badge bar.
-# Validated directly: real bar cores measured 0.0-1.7, the one confirmed
-# false positive (poison's fang/vial trim) measured 31.7-56.6 -- a wide,
-# clean gap, not a close call.
-_BADGE_CORE_STD_MAX = 10.0
+# Originally validated at 10.0: real bar cores measured 0.0-1.7, the one
+# confirmed false positive (poison's fang/vial trim) measured 31.7-56.6.
+# Raised to 20.0 after the campaign shadow-ground-truth audit found a
+# real false NEGATIVE that sample missed -- two genuine Tier I "Lightning
+# Penetration" bars (a subtle highlight/shine gradient in that icon's own
+# art) measured core_std 12.0/13.3, above the old ceiling but nowhere
+# near the fake-art floor (31.7). See capture_pipeline.py's
+# _SUPPORT_BADGE_CORE_STD_MAX (kept in sync -- this script duplicates
+# the constant, not the code) and AI_RAMBLINGS.md for the full writeup.
+_BADGE_CORE_STD_MAX = 20.0
 
 
 def _longest_true_run(column) -> tuple:
@@ -243,7 +249,17 @@ def classify(crop, session, refs):
     if badge_tier is not None:
         icon = best.rsplit("_", 1)[0]
         badge_key = f"{icon}_{badge_tier}"
-        if badge_key in refs and badge_key != best:
+        # Checked against the real (icon, tier) combinations in
+        # definitions/supports.json, not against `refs` -- gating on `refs`
+        # silently broke every correction where that tier hadn't been
+        # harvested yet (see capture_pipeline.py's match_support_icon,
+        # which had the identical bug; kept in sync here since this script
+        # is that function's own validation/regression report). This
+        # script's own validation loop below can't surface that class of
+        # bug regardless (it only evaluates crops whose ground truth is
+        # already in `refs`), so this fix doesn't change the printed
+        # accuracy -- it just keeps this classify() honest with production.
+        if badge_key != best and badge_key in cp._support_visual_key_to_names():
             return badge_key, scores[best], best  # badge overrode the whole-crop guess
     return best, scores[best], None
 
