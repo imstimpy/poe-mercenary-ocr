@@ -28,7 +28,63 @@ The inference path (candidate-narrowing via `PossibleSupports`
 intersection, optionally sharpened by a hand-supplied tier in
 `tier_notes.json`) is kept as a fallback ONLY for captures that have no
 usable `warrant.txt` -- historical captures, or ones where only the
-OCR'd `warrant_generated.txt` was saved.
+OCR'd `warrant_generated.txt` was saved. **Not just a data-collection
+gap below level 68**: a mercenary warrant genuinely cannot be obtained
+at all before then (real game constraint, confirmed directly), so
+every sub-68 capture is permanently inference-only -- there's no later
+"go back and get the real warrant.txt" for these, unlike a merely
+under-captured high-level skill. `__captures_campaign/` (all sub-35)
+is the extreme case: 0 of 20 sessions have a `warrant.txt`, and never
+will. See AI_RAMBLINGS.md's Tier I support detection writeup for what
+this means for coverage below Tier II.
+
+**A fourth source sits between manual identification and inference:
+`resolve_via_embedding()` cross-checks `capture_pipeline.match_support_icon()`
+(the same classifier already validated at 100% against 2094 real
+ground-truth crops) against the text-narrowed candidate list, and
+trusts it only when the two agree.** Text-based narrowing alone
+routinely can't finish the job even when the actual pixels aren't
+ambiguous -- two skills can each structurally offer both `Chain` and
+`Multiple Projectiles` somewhere in their pool with no way to tell
+which ONE a specific crop is from skill names alone, while the
+classifier recognizes the actual icon (and, via its own tier-badge
+correction, the actual tier) directly from pixels, no `tier_notes.json`
+entry required. Checked directly: 99 of 108 real crops stuck in the
+ambiguous-inferred bucket before this existed had a confident embedding
+match that agreed with the structural candidates; the other 9 disagreed
+and are correctly left for manual review rather than trusted blindly.
+Source `"embedding_confirmed"` in the manifest distinguishes these from
+`"manual"` (a human's own visual ID) and `"inferred"` (text narrowing
+alone) -- always disclosed, never silently merged into either.
+
+**A fifth source: a promoted campaign shadow-ground-truth identification.**
+`tools/harvest_campaign_review.py` builds an independent record
+(`assets/campaign_review/manual_truth.json`) of a human reading a
+support's exact name/tier straight off the real in-game tooltip for a
+sub-68 (no-warrant) mercenary, with candidates anchored only to the
+contributing skill's real `PossibleSupports` pool -- zero icon-matching
+involvement anywhere. That's built specifically to stay independent of
+this catalog, for auditing `match_support_icon()` against something it
+had no part in producing (see `tools/audit_campaign_truth.py`). But
+several real (icon, tier) keys may never show up in a warrant-backed
+capture at all -- `assets/support_icon_coverage.md`'s missing list
+skews heavily toward Tier I ("Lesser") rolls precisely because those
+are rarest to catch on camera at the high levels a warrant requires.
+`tools/promote_campaign_truth.py` lets a human deliberately promote a
+*specific* campaign identification into this catalog once they've
+decided it's needed to close a real gap -- copying its crop into
+`assets/harvested_supports/campaign_promoted/` and recording
+`{full_hash: name}` in `assets/harvested_supports/campaign_promotions.json`
+(hand-maintained by that tool, same read-only convention as
+`tier_notes.json`/`manual_labels.json`). Trusted with the same
+confidence as a real warrant.txt label -- source `"campaign_confirmed"`
+in the manifest, always disclosed, never merged into `"ground_truth"`
+or `"manual"`. Promoting a hash removes it from `manual_truth.json`
+(not a duplication -- `campaign_promotions.json` is its new home)
+specifically so it stops counting toward `audit_campaign_truth.py`'s
+numbers once it's also a reference image: auditing the classifier
+against an image that's now one of its OWN references would be
+circular, not an independent check anymore.
 
 Usage:
     python harvest_support_icons.py
@@ -73,6 +129,7 @@ import json
 import os
 import re
 import shutil
+import sys
 from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
 
@@ -81,6 +138,18 @@ import numpy as np
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(TOOLS_DIR)
+
+# capture_pipeline.py resolves its own asset paths relative to the
+# current working directory (see its SUPPORT_REFERENCE_EMBEDDINGS_PATH
+# etc.), so this script needs to run with PROJECT_ROOT as cwd to import
+# and call it correctly -- chdir here rather than documenting "must run
+# from the project root" (tools/match_support_icon.py's approach)
+# because every path in THIS file is already PROJECT_ROOT-based, so
+# nothing here cares what the original cwd was, and the alternative is
+# a class of "wrong directory" mistakes for no real benefit.
+os.chdir(PROJECT_ROOT)
+sys.path.insert(0, PROJECT_ROOT)
+import capture_pipeline as cp
 
 REGIONS_PATH = os.path.join(PROJECT_ROOT, "definitions", "mercenary_regions.json")
 SUPPORTS_BY_SKILLS_PATH = os.path.join(PROJECT_ROOT, "definitions", "supports_by_skills.json")
@@ -108,6 +177,8 @@ _UNRECOGNIZED_TRAILER_RE = re.compile(r"^# unrecognized skill row\(s\), dropped:
 _SUPPORT_LINE_RE = re.compile(r"^(.*) \(Tier: (\d+)\)$")
 TIER_NOTES_PATH = os.path.join(OUTPUT_DIR, "tier_notes.json")
 MANUAL_LABELS_PATH = os.path.join(OUTPUT_DIR, "manual_labels.json")
+CAMPAIGN_PROMOTIONS_PATH = os.path.join(OUTPUT_DIR, "campaign_promotions.json")
+CAMPAIGN_PROMOTED_DIR = os.path.join(OUTPUT_DIR, "campaign_promoted")
 
 
 def extract_tier(name: str) -> Optional[str]:
@@ -220,6 +291,67 @@ def resolve_manual_label(
               f"the manual label until this is resolved by hand.")
         return None
     return name
+
+
+def load_campaign_promotions() -> Dict[str, str]:
+    """Hand-maintained (written by tools/promote_campaign_truth.py, never
+    edited by hand directly and never touched by this script) {full_hash:
+    exact literal supports.json name} for a campaign shadow-ground-truth
+    crop a human has chosen to promote into this catalog -- see this
+    module's docstring for why that's trustworthy despite
+    harvest_campaign_review.py being built to stay independent of this
+    catalog. Missing file is not an error."""
+    if not os.path.isfile(CAMPAIGN_PROMOTIONS_PATH):
+        return {}
+    with open(CAMPAIGN_PROMOTIONS_PATH, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def resolve_via_embedding(crop: Image.Image, candidates: set, common_icons: set,
+                           supports: dict, identity) -> Tuple[Optional[str], list]:
+    """Cross-checks capture_pipeline.match_support_icon() -- the SAME
+    embedding classifier already validated at 100% against 2094 real
+    ground-truth crops (see tools/match_support_icon.py) -- against what
+    text-based narrowing already knows is structurally possible for this
+    crop. Never trusted alone: a name the classifier's recognized icon
+    doesn't even offer as a real member, or that isn't structurally
+    possible per `candidates`/`common_icons`, is never returned.
+
+    This exists because text-based candidate narrowing alone routinely
+    can't finish the job even when the actual pixels aren't ambiguous at
+    all -- e.g. two skills can each structurally offer both `Chain` and
+    `Multiple Projectiles` somewhere in their pool with no way to tell
+    which ONE icon a specific crop uses from skill names alone, while
+    the classifier recognizes the actual icon on sight. Also routinely
+    gets the TIER right via match_support_icon()'s own tier-badge
+    correction even when no tier_notes.json entry exists for this hash
+    at all, and even when there's only ONE candidate identity but that
+    identity spans more than one tier (an identity of size 1 doesn't by
+    itself say which tier -- confirmed on a real "PhysGainAs" crop with
+    no tier_notes.json entry that this alone resolved).
+
+    Returns (visual_key, matches) -- matches is the list of
+    (name, tier_roman) members of that visual_key that survive the
+    structural check. Caller distinguishes three real outcomes: 0
+    matches (classifier disagreed with everything structurally possible
+    -- stays unresolved, same as before this existed), exactly 1 (a real
+    resolution), or 2+ (every one of them IS structurally possible --
+    not a disagreement, a genuine icon+tier collision confirmed for this
+    specific crop, same category as a ground-truth-discovered one, not
+    something that needs -- or can get -- a human's help). visual_key is
+    None only when the classifier itself had nothing confident to say.
+    """
+    visual_key = cp.match_support_icon(crop)
+    if visual_key is None:
+        return None, []
+    members = cp._support_visual_key_to_names().get(visual_key)
+    if not members:
+        return visual_key, []
+    matches = [
+        (name, tier_roman) for name, _tier_int, tier_roman in members
+        if identity(name) in candidates and supports.get(name, {}).get("icon") in common_icons
+    ]
+    return visual_key, matches
 
 
 def load_grid() -> Tuple[List[Tuple[int, int]], List[Tuple[int, int]]]:
@@ -396,6 +528,25 @@ def parse_warrant_skills(text: str) -> Optional[List[str]]:
     list (see build_warrant_extracted_text's docstring in
     capture_pipeline.py), so those captures are skipped entirely rather
     than risk mislabeling a crop with the wrong skill.
+
+    Real, reproduced bug once supports got wired into
+    build_warrant_extracted_text(): each skill's block is now `SkillName`
+    followed by zero or more `SupportName (Tier: N)` lines before the
+    next `--------` separator, but this function used to append EVERY
+    non-separator line, treating each equipped support as if it were an
+    additional skill. For a real 6-skill capture with, say, 2 supports on
+    one skill and 1 on three others, that produced an 11-entry list
+    instead of 6 -- every row_idx past the first skill then pointed at
+    the WRONG skill (or a support name entirely) once handed to
+    harvest_support_icons.py's row-indexed scan_row() calls, silently
+    corrupting candidate narrowing for nearly every row. Caught via
+    manifest.json anomalies (empty candidate set) and ambiguous-inferred
+    entries whose `contributing_skills` were themselves support names
+    like "Impale Chance (Tier: 2)" instead of real skill names -- not a
+    hypothetical, confirmed directly against __captures_campaign's real
+    warrant_generated.txt files. Fixed by only taking the FIRST line
+    after each separator (the skill name itself) and skipping every
+    other line until the next separator resets that expectation.
     """
     lines = text.strip("\n").split("\n")
     if any(_UNRECOGNIZED_TRAILER_RE.match(l) for l in lines):
@@ -408,14 +559,19 @@ def parse_warrant_skills(text: str) -> Optional[List[str]]:
     if i < len(lines) and lines[i].startswith("Mercenary Level:"):
         i += 1
     skills = []
+    expect_skill_name = True
     for l in lines[i:]:
         if l == "--------":
+            expect_skill_name = True
             continue
         if l.startswith("Right click this item"):
             break
         if not l.strip():
             continue
-        skills.append(l)
+        if expect_skill_name:
+            skills.append(l)
+            expect_skill_name = False
+        # else: a support line under the skill just appended -- skip it
     return skills
 
 
@@ -587,6 +743,40 @@ def harvest():
         for row_idx, skill_name in enumerate(skill_list):
             scan_row(im, brightness, row_idx, capture_dir, skill_name)
 
+    campaign_confirmed_names: Dict[str, str] = {}
+    campaign_promotions = load_campaign_promotions()
+    for full_hash, name in campaign_promotions.items():
+        if full_hash in clusters:
+            # Same exact crop also showed up in a real capture -- let that
+            # occurrence's own resolution stand (ground truth or otherwise)
+            # rather than silently overriding it; the promotion becomes
+            # redundant, not lost (it's still recorded in
+            # campaign_promotions.json for anyone reading it by hand).
+            print(f"  NOTE: promoted campaign hash {full_hash} also appears in a real capture -- "
+                  f"using that occurrence's own resolution, not the promotion.")
+            continue
+        crop_path = os.path.join(CAMPAIGN_PROMOTED_DIR, f"{full_hash}.png")
+        if not os.path.isfile(crop_path):
+            print(f"  WARNING: campaign_promotions.json names {name!r} for hash {full_hash}, but its "
+                  f"promoted crop file is missing at {crop_path} -- re-run promote_campaign_truth.py. Skipping.")
+            continue
+        if name not in supports:
+            print(f"  WARNING: campaign_promotions.json names {name!r} for hash {full_hash}, but that's "
+                  f"not a real definitions/supports.json key -- check for a typo. Skipping.")
+            continue
+        crop = Image.open(crop_path).convert("RGB")
+        recomputed_hash = crop_hash(crop)
+        if recomputed_hash != full_hash:
+            print(f"  WARNING: promoted crop file {crop_path} hashes to {recomputed_hash}, not the "
+                  f"{full_hash} campaign_promotions.json expects -- file may be corrupted or "
+                  f"mismatched. Skipping.")
+            continue
+        clusters[full_hash] = {
+            "crop": crop,
+            "occurrences": [("assets/campaign_review (promoted)", "(campaign shadow ground truth)", 0, 0, None)],
+        }
+        campaign_confirmed_names[full_hash] = name
+
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     # Clear PNGs (and the variants/ subfolder) from a previous run before
     # writing this one's -- otherwise a crop that gets a different (better)
@@ -608,6 +798,8 @@ def harvest():
     conflict_count = 0
     ground_truth_labeled_count = 0
     manual_labeled_count = 0
+    embedding_confirmed_count = 0
+    campaign_confirmed_count = 0
     tier_narrowed_count = 0
     for h, data in clusters.items():
         contributing_skills = sorted({occ[1] for occ in data["occurrences"]})
@@ -622,7 +814,24 @@ def harvest():
         display_name = None
         visual_key = None
 
-        if len(ground_truth_labels) == 1:
+        campaign_confirmed_name = campaign_confirmed_names.get(h)
+
+        if campaign_confirmed_name is not None:
+            # A human read this crop's exact name/tier straight off the
+            # real in-game tooltip during a sub-68 campaign encounter --
+            # zero icon-matching involvement anywhere (see this module's
+            # docstring and tools/promote_campaign_truth.py) -- trusted
+            # with the same confidence as a real warrant.txt label, just
+            # from a different real source. This only ever fires for a
+            # cluster promote_campaign_truth.py created fresh above; a
+            # hash that also appears in a real capture already resolves
+            # via ground_truth_labels below and never reaches here.
+            source = "campaign_confirmed"
+            display_name = campaign_confirmed_name
+            identity_value = identity(campaign_confirmed_name) if campaign_confirmed_name in supports else None
+            visual_key = visual_key_for_name(campaign_confirmed_name, supports)
+            campaign_confirmed_count += 1
+        elif len(ground_truth_labels) == 1:
             # A real warrant.txt named this crop directly -- no inference
             # needed, no candidate list, just the exact literal
             # definitions/supports.json key as written in the item text.
@@ -685,6 +894,22 @@ def harvest():
             manual_name = None
             if not anomaly:
                 manual_name = resolve_manual_label(h, manual_labels, supports, common_icons, tier)
+
+            embedding_visual_key, embedding_matches = None, []
+            if manual_name is None and not anomaly and len(candidates) >= 1:
+                # >= 1, not > 1: even a single candidate IDENTITY doesn't
+                # pin down the TIER if that identity has members at more
+                # than one tier (e.g. "PhysGainAs") and no tier_notes.json
+                # entry exists -- the classifier's own tier-badge reading
+                # can still resolve that case, and gating this on > 1
+                # meant it never even got tried (real bug, found via the
+                # manual review page showing a single-candidate crop that
+                # still wasn't auto-resolved).
+                embedding_visual_key, embedding_matches = resolve_via_embedding(
+                    data["crop"], candidates, common_icons, supports, identity)
+            embedding_resolved = len(embedding_matches) == 1
+            embedding_collision = len(embedding_matches) > 1
+
             if manual_name is not None:
                 # A human visually identified this crop directly -- real
                 # icon content, real name, something image-matching code
@@ -697,6 +922,45 @@ def harvest():
                 identity_value = identity(manual_name) if manual_name in supports else None
                 visual_key = visual_key_for_name(manual_name, supports)
                 manual_labeled_count += 1
+            elif embedding_resolved:
+                # capture_pipeline.match_support_icon() confidently
+                # recognized the actual icon+tier, and it agrees with what
+                # text-based narrowing already knows is structurally
+                # possible (see resolve_via_embedding's docstring) -- no
+                # human needed for this one, unlike the manual/inferred
+                # paths above and below it.
+                embedding_name, embedding_tier_roman = embedding_matches[0]
+                if tier is not None and tier != embedding_tier_roman:
+                    print(f"  WARNING: tier_notes.json says tier {tier!r} for hash {h}, but the "
+                          f"embedding classifier confidently resolved it as {embedding_name!r} "
+                          f"(tier {embedding_tier_roman!r}) instead -- trusting the embedding "
+                          f"(already validated at 100%, see tools/match_support_icon.py), but "
+                          f"double check this tier_notes.json entry for a possible misread.")
+                source = "embedding_confirmed"
+                display_name = embedding_name
+                identity_value = identity(embedding_name)
+                visual_key = visual_key_for_name(embedding_name, supports)
+                embedding_confirmed_count += 1
+            elif embedding_collision:
+                # Not a disagreement -- EVERY tied member is structurally
+                # possible for the contributing skill(s), meaning the
+                # classifier has pinned down the exact icon+tier and it
+                # genuinely renders more than one real support identically
+                # (e.g. Minion Damage / Minion Life). This is the SAME
+                # category as a ground-truth-discovered collision, not
+                # something more inference or a human could ever resolve
+                # further -- setting visual_key here (and narrowing
+                # `candidates` to just these tied identities, discarding
+                # the broader per-skill set that could include totally
+                # unrelated icons the same skill happens to also offer)
+                # lets the existing by_key merge pass below fold this in
+                # with any other real occurrence of the same visual_key
+                # and correctly reclassify it as visual_key_ambiguous,
+                # instead of leaving it looking like it needs a human's
+                # help choosing between irrelevant options it was never
+                # actually being asked to choose between.
+                visual_key = embedding_visual_key
+                candidates = {identity(name) for name, _tier_roman in embedding_matches}
             else:
                 if tier and not anomaly:
                     # A human read the numeral off the real crop (see tier_notes.json
@@ -713,7 +977,7 @@ def harvest():
                         candidates = narrowed
                         tier_narrowed = True
 
-            if manual_name is None and len(candidates) == 1:
+            if manual_name is None and not embedding_resolved and not embedding_collision and len(candidates) == 1:
                 resolved_identity = next(iter(candidates))
                 members = identity_members.get(resolved_identity, [resolved_identity])
                 # Knowing the FAMILY isn't the same as knowing the TIER --
@@ -738,13 +1002,53 @@ def harvest():
                     resolved_tier_roman = None
 
                 if resolved_tier_roman is not None:
-                    identity_value = resolved_identity
-                    display_name = canonical_display_name(identity_value, members)
-                    icon = supports.get(members[0], {}).get("icon")
-                    visual_key = f"{icon}_{resolved_tier_roman.lower()}" if icon else None
-                    labeled_count += 1
-                    if tier_narrowed:
-                        tier_narrowed_count += 1
+                    # Real, reproduced bug: `members[0]` is just
+                    # alphabetically first (build_identity_members sorts
+                    # them), which can be a Gilded member of this family
+                    # -- canonical_display_name() already special-cases
+                    # "Gilded " out for the display NAME (see its own
+                    # docstring), but this icon lookup never got the same
+                    # fix. Confirmed on "IncreaseAreaOfEffect": alphabetically
+                    # first member is "Gilded Area per Projectile" (icon
+                    # mercgoldsupportgem, tier III only), so a tier-I
+                    # resolution here produced label "Increased Area of
+                    # Effect" (correctly Gilded-excluded) filed under
+                    # visual_key "mercgoldsupportgem_i" (WRONG icon, and a
+                    # tier that member doesn't even have) instead of the
+                    # real "increasedaoe_i". Fixed by finding the specific
+                    # member that actually exists at resolved_tier_roman
+                    # and using ITS icon -- if more than one member shares
+                    # that exact tier (a real family-level collision, e.g.
+                    # a Gilded and a plain entry both landing on tier III),
+                    # that's genuine ambiguity and stays unresolved rather
+                    # than guessing between them.
+                    #
+                    # Second real bug in the same spirit, found via the
+                    # manual review page: this filtered by tier alone, not
+                    # icon -- a family whose members span more than one
+                    # icon (e.g. "Duration" covers `increasedduration`
+                    # ["More Duration"] and `reduceduration` ["Less
+                    # Duration"], opposite effects sharing a family label)
+                    # can have one member of EACH icon land on the exact
+                    # same tier, so this refused to resolve even when only
+                    # ONE of those icons was actually possible for the
+                    # contributing skill(s). Fixed by also requiring the
+                    # member's icon to be in `common_icons` -- the same
+                    # structural fact resolve_via_embedding() and
+                    # generate_manual_labeling_page.py already check.
+                    tier_matches = [m for m in members
+                                    if supports.get(m, {}).get("tier_roman") == resolved_tier_roman
+                                    and supports.get(m, {}).get("icon") in common_icons]
+                    if len(tier_matches) == 1:
+                        identity_value = resolved_identity
+                        display_name = canonical_display_name(identity_value, members)
+                        icon = supports.get(tier_matches[0], {}).get("icon")
+                        visual_key = f"{icon}_{resolved_tier_roman.lower()}" if icon else None
+                        labeled_count += 1
+                        if tier_narrowed:
+                            tier_narrowed_count += 1
+                    # else: more than one member of this family actually
+                    # exists at this tier -- ambiguous, stays unresolved.
                 # else: family is known but tier isn't -- stays in the
                 # ambiguous bucket below rather than guessing a tier.
 
@@ -871,6 +1175,8 @@ def harvest():
     # later, once every cluster's visual_key is known.
     ground_truth_labeled_count = sum(1 for e in manifest if e["source"] == "ground_truth")
     manual_labeled_count = sum(1 for e in manifest if e["source"] == "manual")
+    embedding_confirmed_count = sum(1 for e in manifest if e["source"] == "embedding_confirmed")
+    campaign_confirmed_count = sum(1 for e in manifest if e["source"] == "campaign_confirmed")
     labeled_count = sum(1 for e in manifest if e["source"] == "inferred" and e["label"] is not None)
     conflict_count = sum(1 for e in manifest if e["source"] == "ground_truth_ambiguous")
     visual_key_ambiguous_entry_count = sum(1 for e in manifest if e["source"] == "visual_key_ambiguous")
@@ -913,6 +1219,10 @@ def harvest():
     print(f"Unique (icon, tier) crops found: {len(clusters)}")
     print(f"  labeled from ground truth (warrant.txt text, zero ambiguity): {ground_truth_labeled_count}")
     print(f"  labeled from manual_labels.json (visual ID, human-confirmed): {manual_labeled_count}")
+    print(f"  confirmed via capture_pipeline's embedding classifier (agrees with structurally-possible "
+          f"candidates, no human needed): {embedding_confirmed_count}")
+    print(f"  promoted from the campaign shadow-ground-truth (real tooltip read, zero icon-matching, "
+          f"see tools/promote_campaign_truth.py): {campaign_confirmed_count}")
     print(f"  confidently auto-labeled by inference: {labeled_count} ({tier_narrowed_count} of those via a tier_notes.json entry)")
     print(f"  ambiguous, ground-truth-CONFIRMED real candidates, caught within one exact hash (two+ "
           f"different real supports genuinely share this icon+tier -- proven, not guessed): {conflict_count}")
