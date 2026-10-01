@@ -4680,3 +4680,352 @@ two additions are pure archival groundwork with zero effect on test
 output, consistent with the README's explicit guidance: "Add more here
 as real captures turn up rather than letting them depend on an archive
 folder sticking around." Full suite re-run with no regressions.
+
+## Three more real name bugs reported at once, all different -- 2 fixed, 1 tracked as known issue
+
+User reported three simultaneously-bad name extractions:
+- `captures/20260928_163450`: "RE Bib, the Azadin Howler 'en" (true: "Bib, the Azadin Howler")
+- `captures/20260928_163824`: "OT Rae" (true: "Razti Eto")
+- `captures/20260928_164044`: "T zara Falken" (true: "T'zara Falken")
+
+**Case 1 (Bib)**: the leading-edge mirror of the "ORB"/"PORE" uppercase
+badge bug finally turned up ("RE " -- 2 uppercase letters). Fixed by
+widening `_STRAY_NAME_PREFIX_RE` to accept the same uppercase
+alternative the suffix regex already had. Also fixed a second, subtler
+issue on the trailing side: raw noise was `\ufffden` (an unrenderable
+glyph immediately followed by more noise letters), but
+extract_text()'s apostrophe-normalization step runs BEFORE the
+suffix-stripping regex, turning `\ufffd` into a literal `'` first --
+so by the time `_STRAY_NAME_SUFFIX_RE` checked the string, the noise
+looked like `'en`, starting with what looks like a genuine apostrophe,
+which the regex didn't allow. Fixed by allowing one optional leading
+`'` in the suffix noise pattern (safe: no real name is known to end in
+an apostrophe-prefixed word).
+
+**Case 2 (Razti Eto)**: a genuinely different bug, not edge noise at
+all -- the core SELECTION step. Raw `--psm 11` output was a long wall
+of background-art noise fragments; among them, "ve OT Rae" (pure
+noise) and "Razti Eto" (the real name) tied EXACTLY at 9 characters.
+`max(matches, key=len)` breaks ties by first occurrence in the list,
+and the noise fragment happened to appear earlier in the raw OCR text,
+so it silently won -- then `_STRAY_NAME_PREFIX_RE` stripped its own
+"ve " prefix afterward, landing on "OT Rae", a string just plausible-
+enough-looking that nothing else caught it. Fixed with a new
+`_looks_like_title_case()` helper and a tie-aware selection: when
+multiple candidates tie for longest, prefer one where every word is
+Title-Case (a lone leading capital, never all-uppercase beyond that;
+"the" exempted) over one that isn't. "ve OT Rae" mixes lowercase
+("ve"), ALL-CAPS ("OT"), and Title-Case ("Rae") -- real names never do
+this, confirmed against every existing fixture. Deliberately scoped to
+break TIES ONLY -- never overrides a real, unambiguous longest match
+with a shorter "nicer" one, so the base "longest run wins" rule (and
+its own deliberate recall-over-precision bias) is unchanged for every
+non-tied case.
+
+**Case 3 (T'zara)**: NOT a new bug category -- same as "Voltaire, the
+Aristocrat" from 2026-09-22. Tesseract dropped the apostrophe entirely
+(not even a `\ufffd` this time, just a plain space), producing "T zara
+Falken", indistinguishable at the character level from a real "T Zara
+Falken" two-word name without a mercenary-name dictionary to check
+against. Considered whether `_looks_like_title_case` could double as a
+repair here (it WOULD correctly flag "T zara" as suspicious, since
+"zara" is lowercase) but rejected that: the helper only ever breaks a
+tie between two OCR candidates that both already survived to the
+matches list -- repurposing it as a general post-hoc repair pass over
+a single already-accepted string is a materially different, riskier
+job (real short second words could get wrongly touched), and wasn't
+validated for that. Tracked as `known_issue=True`, same convention as
+Voltaire.
+
+Added all three real crops as fixtures
+(`test_data/mercenary_names/{bib_the_azadin_howler,razti_eto,t_zara_falken}.png`).
+Confirmed each failing before its respective fix (or, for T'zara,
+confirmed it's genuinely unfixed) and passing/correctly-tracked after.
+MERCENARY NAMES: 24/25 -> 26/28 (2 known issues, both intentional).
+Full suite re-run with no regressions. Cross-checked capture
+20260928_163450 (the one with a real warrant.txt) end to end -- fixed
+name now matches the real warrant exactly.
+
+## Name extraction redesign: shape validation replaces edge-noise patching
+
+User pushback, verbatim and correct: the last several name-extraction
+fixes (apostrophe handling, leading/trailing noise regexes, the tie-
+break heuristic) were "bandaid fixes upon bandaid fixes" -- each one
+defended only against the specific noise shape already observed, with
+nothing validating that the final answer was actually name-shaped at
+all. Asked to categorize every real name into buckets and find the
+outliers.
+
+Pulled every name line from all 168 unique real `warrant.txt` files
+(ground truth, not OCR output). Result: exactly 4 structural buckets,
+zero exceptions, zero capitalization violations across every word
+(checked programmatically, not by eye):
+
+- A: `Name, the Title` (1-word title) -- 93/168
+- B: `Name, the Title Title` (2-word title) -- 37/168
+- C: `Name Surname` (no comma, always exactly 2 words) -- 35/168
+- D: `Name, of Title Title[ Title]` (2-3 word title) -- 3/168
+
+Documented in `assets/mercenary_name_shapes.md` (succinct, no history,
+per the user's explicit request for a standalone reference file).
+Bucket D had zero fixture coverage before this -- added all 3 known
+real examples as fixtures before touching any code, per the user's
+explicit instruction to have bucket coverage in place before the
+refactor.
+
+Replaced `extract_text()`'s old approach (pick the longest OCR "run",
+strip known noise off its edges with `_STRAY_NAME_PREFIX_RE` /
+`_STRAY_NAME_SUFFIX_RE` / a standalone tie-break helper) with
+`extract_mercenary_name()`: search the raw OCR output for the longest
+embedded span that actually matches one of the 4 shapes
+(`_find_valid_name_spans`), searching across BOTH `--psm 11` and
+`--psm 7` and pooling valid spans from both rather than committing to
+whichever pass produces a match first. Falls back to the old longest-
+run behavior (with a `_note()` warning, now visible where it used to be
+silent) only when no valid span exists anywhere.
+
+**Split into two functions, not one refactored one** -- caught before
+testing, not after: `extract_text()` was shared between the name field
+AND the type/subtype field (`parse_mercenary_type()` calls it too).
+Type text ("Infamous Blade Ambusher") never fits any of the 4 name
+buckets, so applying shape validation there unconditionally would have
+flooded every single type extraction with false "didn't match any name
+shape" warnings. `extract_text()` now stays exactly as it was
+(type/subtype only, its original conditional psm-7-only-on-emptiness
+retry preserved unchanged); `extract_mercenary_name()` is new and
+name-only.
+
+Retired entirely: `_STRAY_NAME_PREFIX_RE`, `_STRAY_NAME_SUFFIX_RE`, the
+standalone tie-break block, `_looks_like_title_case` as its own
+function (folded into `_word_looks_valid`). `_STRAY_ICON_PREFIX_RE`
+untouched (shared with the type field, out of scope).
+
+**Two more real bugs found and fixed during verification, both in the
+new logic itself, not pre-existing:**
+
+1. Greedy title-word consumption had no upper bound, so trailing noise
+   landing AFTER a complete title, that itself happened to be Title-
+   Case-shaped ("Re", "N", "Aol" -- all confirmed on real captures
+   found via a full 182-capture corpus sweep, not the reports that
+   prompted this task), got wrongly absorbed as a bogus 2nd title word.
+   Checked every real title word's length across the full corpus: the
+   shortest ever observed is 3 characters ("Red", "Son"). Added
+   `_MIN_TITLE_WORD_LEN = 3` as a floor on title-word continuation --
+   resolves 2 of the found cases (Thraksha/Tara, both single-char/2-char
+   noise); does NOT resolve cases where the noise is itself 3+
+   characters (Ivi/"Aol", Rakella/"Bion" -- both same length as real
+   title words already in the corpus, e.g. "Pity"/"Dumb"/"Pure"/"Hand"
+   at 4 chars) -- tracked as known issues, not chased further with an
+   arbitrarily higher threshold that would start rejecting real titles.
+
+2. A real capture (Vorrik) had its FIRST name mid-word split by OCR
+   ("Vorri k,"), leaving no valid Bucket A/B span -- but the tail of the
+   corrupted string ("Azadin Cutthroat", really the back half of the
+   title) coincidentally satisfied Bucket C's bare-2-word shape entirely
+   on its own, so the search returned a confident but completely wrong
+   answer. Checked all 168 real names: `the`/`of` never appears
+   anywhere except as the single title connector, so a bare-2-word match
+   starting immediately after one is never real -- excluded that case
+   specifically. Also fixed the underlying reason this false positive
+   won: `extract_mercenary_name()` used to stop at the first psm pass
+   with ANY valid span, so `--psm 7`'s actually-correct, complete read
+   of this same crop was never even considered once `--psm 11` found its
+   wrong-but-valid fragment first. Now pools spans from both passes and
+   picks the best across all of them.
+
+**Full-corpus verification** (182 real names, not just the fixture set
+or the 3 captures that prompted this task): 5 real mismatches found on
+the first pass, 2 fixed by the above, 3 remain as genuine, honestly-
+tracked known issues -- all confirmed NOT regressions from this
+session's changes (checked the mismatch classes existed under the old
+code too, e.g. the old suffix regex required uniform-case noise and
+would never have caught a Title-Case word like "Bion" either):
+
+- `Ventaro Quick-hand` -> `Ventaro Quick- hand` (hyphen mid-word split,
+  same category as Voltaire/T'zara -- correctly hits the honest
+  fallback + NOTE, no valid span exists anywhere)
+- `Rakella, the Tenth` -> `...Tenth Bion` (trailing noise at the
+  _MIN_TITLE_WORD_LEN boundary -- fully valid-SHAPED, so no NOTE fires;
+  the one real class this redesign can't make visible on its own)
+- `Ivi, the Summoner` -> `...Summoner Aol` (same category as Rakella)
+
+Both Rakella and Ivi technically pass the test suite's containment
+check (`expected_name in actual_name`) since the wrong answer happens
+to contain the right one as a prefix -- deliberately left
+`known_issue=True` anyway rather than following the harness's
+"known_issue_now_passing" suggestion, since containment was calibrated
+for the OLD failure mode (obviously-noise-shaped extra words a human
+could spot at a glance), and a fabricated word that itself looks like a
+real title word is a more deceptive wrong answer, not a passing one.
+
+`Voltaire, the Aristocrat` (previously a known issue) now genuinely
+passes as a side effect of pooling both psm passes' spans instead of
+stopping at the first non-empty one.
+
+Regenerated `warrant_generated.txt` for all 182 real-warrant captures
+(including the older `__captures_20260914`/`__captures_20260915`
+batches that predate the `level` region -- handled the same way the
+earlier full-corpus audit script did). Final state: 34 MERCENARY NAMES
+fixtures (30 passing, 4 known issues, up from 26/2 before this task),
+full suite reports no regressions.
+
+## Greater Generosity III harvested from real ground truth -- and why it already "worked" before being in the catalog
+
+User reported `captures/20260928_210419` (Darakos, the Keitan Crusader,
+Infamous Warpriest) shows "Greater Generosity (Tier: 3)" on Smite --
+confirmed directly against the real warrant.txt, zero ambiguity.
+
+Before harvesting, checked something that looked contradictory first:
+`warrant_generated.txt` for this exact capture ALREADY showed "Greater
+Generosity (Tier: 3)" cleanly, with no "X or Y" ambiguity, even though
+`assets/support_icon_coverage.md` had `generositysupport_iii` flagged
+as "not in the reference catalog yet." Traced why rather than assuming
+either side was wrong: `assets/models/support_reference_embeddings.json`
+already had `generositysupport_ii` (plain "Generosity", Tier II --
+apparently captured and harvested at some earlier point, consistent
+with the user's much-earlier note that harvested_supports had "all but
+lesser/greater generosity"). match_support_icon() recognizes the
+Generosity ICON FAMILY from that Tier II reference regardless of exact
+tier, then reads the actual tier separately via its own badge-
+correction logic -- so live matching already worked correctly on Tier
+III despite no dedicated Tier III reference existing. The coverage
+report's "missing" flag is about the FORMAL catalog's own completeness
+(a dedicated PNG per tier), a stricter, different criterion than "can
+production actually resolve this today" -- both true and worth closing
+for real, not a contradiction.
+
+Ran the full documented harvest workflow: `harvest_support_icons.py`
+(pulled `generositysupport_iii.png` into `assets/harvested_supports/`
+from this capture's ground truth) -> `export_support_reference_embeddings.py`
+(the step that actually updates what live matching AND the test suite
+both read from -- skipping this would have left the new PNG sitting
+inert, same risk class as the earlier "deleting an archive silently
+regresses the catalog" finding, just the update-forgotten side of that
+same coin). SUPPORT COVERAGE BY SKILL: 8 -> 7 issues, 3982 -> 3983
+covered entries. Only Lesser Generosity I remains uncaptured for Smite.
+Full suite re-run with no regressions.
+
+## Real production false negative: gem presence threshold had gone stale, recalibrated
+
+User reported another Chain Hook of Trarthus in `captures/20260930_162909`
+(Ripper, Koparu the Keitan Survivor). `process_capture()` found NO gem in
+any of the 4 rucksack quadrants -- a genuine surprise given every prior
+Chain Hook sighting this session was detected cleanly. Didn't assume the
+pipeline was right and the user was mistaken: visually inspected all 4
+rucksack crops directly. `rucksack_bottom_right.png` is unmistakably
+Chain Hook of Trarthus -- zoomed side-by-side against
+`assets/gems/chain_hook_of_trarthus.png` confirms identical art (same
+crystal shape, chain/hook overlay, sparkle positions).
+
+This is a real, production-critical bug, not a cosmetic one:
+`is_gem_present_in_rucksack()`/`GEM_EMBEDDING_PRESENCE_THRESHOLD`
+DOES determine live Gem 1-4 output (unlike `match_icon`'s identity
+matching, already known-unreliable and explicitly non-blocking). A
+false negative here means a real gem sighting gets silently logged as
+"nothing here."
+
+Root cause: `GEM_EMBEDDING_PRESENCE_THRESHOLD = 0.8737`'s own comment
+claimed "real gem floor 0.9202, real non-gem ceiling 0.8273, ZERO
+overlap" against 35 gem / 62 non-gem samples -- but that calibration
+was never revisited as this project's own gem-harvesting work (this
+session alone) grew the real gem corpus substantially (57 real crops
+on hand now across `test_data/gems/` + `variance/` + `quadrants/` +
+`blade_ambusher/`, not just the 12 canonical references). This new
+capture's crop scored 0.8607 -- clearance broke silently as the corpus
+grew, with nothing to catch it, because `run_gem_presence_tests()`
+itself only ever checked the 12 canonical top-level files as positive
+examples, never the 45+ real variance/quadrant/blade-ambusher crops
+already sitting in the repo.
+
+Recomputed against the FULL current real sample set (57 gem, 36
+non-gem): real gem floor 0.8608 (this new capture, now the lowest),
+real non-gem ceiling 0.8218 -- still zero overlap, just a real ~0.039
+margin instead of the stale 0.093 one. Set
+`GEM_EMBEDDING_PRESENCE_THRESHOLD = 0.8413` (new midpoint). Confirmed
+this doesn't flip any of the other 56 known real gem scores or any of
+the 36 known real non-gem scores before applying it.
+
+Also fixed the actual gap that let this go unnoticed:
+`run_gem_presence_tests()` now walks `variance/`, `quadrants/`, and
+`blade_ambusher/` too, not just the 12 canonical files -- every real
+gem crop this project has on hand is a real positive example, and
+checking only a curated dozen of them is exactly how a threshold like
+this can drift stale for months without the test suite ever flagging
+it. GEM PRESENCE: 15 -> 57 real positive examples checked every run
+going forward.
+
+Added this capture's crop to the (newly created)
+`test_data/gems/variance/chain_hook_of_trarthus/` folder. Confirmed
+`is_gem_present()` now returns True for it, and `process_capture()`
+correctly resolves `rucksack_bottom_right = True` end to end. Full
+suite re-run with no regressions.
+
+## Documentation bug caught by the user: hyphenated words can capitalize BOTH halves, not just the first
+
+While reviewing `assets/mercenary_name_shapes.md`, user caught that its
+stated rule ("every real word... never uppercase beyond that first
+letter") doesn't describe `captures/20260930_163313`'s real name,
+"Velessa, the Bardiyan-Born" -- "Bardiyan-Born" has TWO capitalized
+letters (one per hyphen segment), not one.
+
+Checked whether this was a doc bug or a code bug before touching
+anything: `extract_mercenary_name()` already returns "Velessa, the
+Bardiyan-Born" correctly for this real capture. `_word_looks_valid`'s
+all-uppercase-beyond-first-letter rejection (`core[1:].isupper()`) only
+trips when EVERY remaining character is uppercase -- "Bardiyan-Born"'s
+remainder ("ardiyan-Born") is mostly lowercase, so it was never rejected
+in the first place. Purely a documentation accuracy gap, not a bug.
+
+Swept the full real-name corpus for every hyphenated word to confirm
+this isn't a rare one-off before rewriting the doc: both capitalization
+styles are genuinely common --
+first-capital-only (`Prowl-linger`, `Quick-hand`, `Shadow-turn`,
+`Pit-fighter`, `Prayer-hand`, `Flesh-lord`, `Trigger-happy`) and
+both-halves-capitalized (`Bardiyan-Born`, `Cyaxan-Born`, `Cyaxan-Made`,
+`Slack-Jawed`, and "Death-Dealer"/"Death-dealer" appearing as both
+variants). Updated `assets/mercenary_name_shapes.md` and
+`_word_looks_valid`'s docstring to state this explicitly instead of
+the narrower, technically-inaccurate original wording.
+
+Added `test_data/mercenary_names/velessa_the_bardiyan_born.png` and a
+`("Velessa, the Bardiyan-Born", False)` fixture -- not because anything
+needed fixing, but to pin the already-correct behavior down so a future
+edit made against a literal reading of the (now-fixed) doc doesn't
+accidentally break it. Full suite re-run with no regressions.
+
+## "Bladefall of Trarthus" the skill: externally confirmed real, still absent from our own corpus
+
+Follow-up to the "skills defined but never observed" investigation:
+user pushed back specifically on `Bladefall of Trarthus` being in the
+"still never observed anywhere" list, given how constantly Bladecaster
+(and its signature gem of the same name) has come up this session.
+Verified the finding was accurate as stated first -- checked every one
+of the 20 real Bladecaster captures on hand (10 with real warrant.txt,
+20 total including generated), and every single Bladefall-family
+sighting shows the PLAIN "Bladefall", never the suffixed variant. Not
+a parsing bug.
+
+Then the user supplied independent, external evidence: a real
+warrant.txt pasted from the PoE trade website (a Bladecaster, "Privok,
+the Quiet", with "Bladefall of Trarthus" as its actual equipped
+skill). This is NOT a first-party capture -- no screen crops, just
+pasted text -- so it doesn't add an entry to this project's own
+capture corpus or change the "never observed in OUR corpus" fact. But
+it does independently confirm the skill is real and genuinely
+rollable, not a dead/unused definitions-file entry the way `[DNT]
+Unused` or (suspected) `Do Nothing` are -- it's simply still a rare
+enough roll that none of our own ~20 Bladecaster captures have landed
+on it yet.
+
+Worth remembering for next time a "defined but never observed" list
+comes up: absence from this project's own corpus is NOT the same claim
+as "doesn't exist" -- external evidence like this can independently
+settle which gaps are "real but rare" vs. which are "may not actually
+be live" (the same distinction `assets/support_icon_coverage_notes.json`
+already draws for supports via trade-site cross-referencing, now
+confirmed to extend usefully to skills too, not just supports).
+
+Also checked the same pasted warrant's equipped supports
+("Greater Physical as Extra Chaos (Tier: 3)" on Bladefall of Trarthus)
+against assets/support_icon_coverage.md -- not a tracked gap, already
+fully covered, nothing actionable there.
