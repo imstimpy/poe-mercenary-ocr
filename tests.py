@@ -190,64 +190,131 @@ MERCENARY_NAME_CASES = [
     # byte-identical text-glyph pixels, differing only in incidental
     # background-art noise at the crop's edges, yet --psm 11
     # deterministically returned nothing at all on this specific crop
-    # while succeeding on the other. extract_text's --psm 7 fallback
-    # (see its docstring) is what recovers this one. This is the actual
-    # failing crop, not the succeeding one, so it exercises that
-    # fallback path specifically -- don't swap it for a "cleaner" crop
-    # of the same name.
+    # while succeeding on the other. extract_mercenary_name's --psm 7
+    # fallback (see its docstring) is what recovers this one. This is the
+    # actual failing crop, not the succeeding one, so it exercises that
+    # fallback path specifically -- don't swap it for a "cleaner" crop of
+    # the same name.
     ("Eli, the Contemptible", False),
-    # Regression case for the apostrophe-splits-the-word-run bug: Tesseract
-    # read the apostrophe in "Ven'zi" as � on --psm 11, and
-    # _WORD_RUN_RE didn't allow apostrophe-like characters mid-run, so the
-    # name fragmented into "Ven" and "zi Kaldri" and max(matches, key=len)
-    # kept the longer, wrong, truncated fragment. Fixed by allowing
-    # straight/curly apostrophes and � inside the run, then
-    # normalizing all three to a plain apostrophe in the final string.
+    # Real capture where --psm 11 read the apostrophe in "Ven'zi" as the
+    # Unicode replacement character (�) instead of a real
+    # apostrophe. _find_valid_name_spans normalizes that (and curly
+    # quotes) to a plain "'" before searching, so this still resolves to
+    # a clean Bucket-C span.
     ("Ven'zi Kaldri", False),
-    # Regression case for a second, distinct leading-noise bug: --psm 11
-    # read background-art texture at the crop's edge as its own short
-    # lowercase word ("ae"), space-joined onto the real name by Tesseract
-    # so it landed INSIDE the same _WORD_RUN_RE match rather than as a
-    # separable fragment (raw OCR was "ae Ruktara, the Unrelenting").
-    # Fixed via _STRAY_NAME_PREFIX_RE, distinct from _STRAY_ICON_PREFIX_RE
-    # (that one only strips before the literal word "Infamous").
+    # Real capture with background-art texture at the crop's LEFT edge,
+    # read by --psm 11 as its own short lowercase word ("ae Ruktara, the
+    # Unrelenting"). No edge-stripping needed: "ae" isn't Title-Case, so
+    # it can't be part of any valid span, while "Ruktara, the
+    # Unrelenting" still is -- the search finds the real name regardless
+    # of where the noise sits.
     ("Ruktara, the Unrelenting", False),
-    # Regression case for the trailing mirror of the above bug: the same
-    # speckled background-art noise appeared on BOTH edges of this crop,
-    # read as a stray lowercase word after the name too (raw OCR was "oe
-    # Pradin Prowl-linger af", true name "Pradin Prowl-linger"). Fixed via
-    # _STRAY_NAME_SUFFIX_RE.
+    # Same background-art noise, this time on BOTH edges ("oe Pradin
+    # Prowl-linger af") -- same reasoning, neither "oe" nor "af" can
+    # start/extend a valid span.
     ("Pradin Prowl-linger", False),
-    # Regression case for a third kind of edge noise: not background-art
-    # texture, but an actual on-screen orange UI badge ("ORB") inside the
-    # wide/generous name crop, misread by --psm 11 as "PORE" and
-    # space-joined onto the name (raw OCR was "Alak Prowl-linger PORE").
-    # Fixed by widening _STRAY_NAME_SUFFIX_RE to also strip a short
-    # ALL-UPPERCASE trailing word, kept as a separate alternative from
-    # the lowercase case since a real title can legitimately end in a
-    # short Title-Case word.
+    # A different noise SOURCE (a real on-screen orange UI badge, "ORB",
+    # misread as "PORE") but the same outcome: "PORE" fails
+    # _word_looks_valid (uppercase beyond the first letter), so it's
+    # never part of any valid span either.
     ("Alak Prowl-linger", False),
-    # KNOWN ISSUE, not fixed: --psm 11 inserted spurious spaces INSIDE two
-    # real words ("Voltaire" -> "Voltai re", "Aristocrat" -> "Ari
-    # stocrat"), unlike every other name bug fixed this session (all of
-    # which were extra noise GLUED onto an intact real name at an edge).
-    # No safe general fix exists for this: there's no dictionary of valid
-    # mercenary given names to validate a repair against (unlike
-    # match_skill_name's fuzzy pool), and a naive "merge short internal
-    # word fragments back together" rule would wrongly corrupt real
-    # multi-word names already in this list (e.g. "Vorla Tarthis",
-    # "Dalshon Alo" -- "Alo" is only 3 letters, same ballpark as the
-    # bogus "Ari"/"re" fragments here, so length alone can't tell them
-    # apart). --psm 7 happens to read this specific crop correctly
-    # (aside from a stray "aan " prefix _STRAY_NAME_PREFIX_RE already
-    # handles), but psm 11 succeeds first and the loop never reaches it --
-    # swapping the default psm priority isn't justified from this one
-    # counterexample alone against extract_text()'s existing, differently-
-    # motivated psm-11-first reasoning (see its docstring and the "Eli,
-    # the Contemptible" case above, which depends on psm 11 fully failing
-    # before psm 7 is tried). Tracked here as a known issue rather than
-    # guessed at.
-    ("Voltaire, the Aristocrat", True),
+    # Real capture combining a leading noise word AND trailing noise that
+    # (after apostrophe normalization) looks like it starts with a real
+    # apostrophe ("RE Bib, the Azadin Howler 'en") -- neither "RE" nor
+    # "'en" is a valid word, so the search isolates "Bib, the Azadin
+    # Howler" untouched.
+    ("Bib, the Azadin Howler", False),
+    # Real capture where noise ("ve OT Rae") and the real name ("Razti
+    # Eto") both appeared as raw OCR fragments. The old longest-run
+    # selection didn't care about shape at all; here "OT" fails
+    # _word_looks_valid (all-uppercase beyond the first letter), so "ve
+    # OT Rae" produces no valid 2-word span while "Razti Eto" does --
+    # no length comparison needed.
+    ("Razti Eto", False),
+    # KNOWN ISSUE, not fixed: --psm 11 inserted spurious spaces INSIDE
+    # two real words ("Voltaire" -> "Voltai re", "Aristocrat" -> "Ari
+    # stocrat"). Unlike every case above, the noise isn't an extra glued-
+    # on word -- the real words themselves got corrupted, so there's no
+    # valid span to find in that psm 11 output at all ("Voltai re" fails:
+    # 2 words before a comma, not 1). Passes now via the --psm 7 retry
+    # (broadened to fire whenever --psm 11 found no valid span, not just
+    # on total emptiness) -- that pass reads this specific crop cleanly.
+    ("Voltaire, the Aristocrat", False),
+    # KNOWN ISSUE, not fixed -- same underlying category as Voltaire
+    # above (Tesseract corrupting a real word, not gluing on noise): the
+    # apostrophe in "T'zara" was dropped entirely (not even a � this
+    # time, just a plain space), producing "T zara Falken". "zara" is
+    # lowercase, so it correctly fails _word_looks_valid and no valid
+    # span is found -- unlike Voltaire, --psm 7 found ZERO candidates on
+    # this crop at all, so there's no second chance to recover it.
+    ("T'zara Falken", True),
+    # Bucket-D coverage ("Name, of Title[ Title...]") -- the sparsest of
+    # the 4 real name shapes (see assets/mercenary_name_shapes.md, 3/168
+    # real ground-truth names) and, until now, entirely unrepresented in
+    # this fixture set (every other comma case here uses "the"). All 3
+    # known real examples added together since the bucket is this thin.
+    ("Baknar, of Unshakeable Faith", False),
+    ("Oktor, of House Azadi", False),
+    ("Pradin, of House Azadi", False),
+    # Found via a full 182-real-name corpus sweep after the shape-
+    # validation redesign landed (not from a targeted report) -- 3 real,
+    # still-unresolved cases, all genuine limits of shape validation
+    # rather than bugs in it:
+    #
+    # KNOWN ISSUE: same mid-word-split category as "Voltaire, the
+    # Aristocrat" and "T'zara Falken" above, this time on a hyphenated
+    # surname -- raw OCR was "Ventaro Quick- hand" (real: "Ventaro
+    # Quick-hand"). "Quick-" fails _word_looks_valid (a trailing hyphen
+    # with no letter after it), so no valid span exists anywhere and this
+    # correctly falls through to the honest fallback + NOTE rather than
+    # a wrong-but-confident answer.
+    ("Ventaro Quick-hand", True),
+    # KNOWN ISSUE: the inherent limit _MIN_TITLE_WORD_LEN could only
+    # partially close (see its own comment) -- trailing noise that is
+    # ITSELF Title-Case-shaped and long enough to clear the length floor
+    # can't be told apart from a genuine 2nd title word by shape alone.
+    # Raw OCR was "Rakella, the Tenth Bion" (real: "Rakella, the
+    # Tenth") -- "Bion" is 4 characters, the same length as several real
+    # title words already in this corpus (Pity/Dumb/Pure/Thug/Goof/Hand),
+    # so no length threshold could reject it without also rejecting real
+    # ones. Unlike the Ventaro/Voltaire/T'zara cases, this one does NOT
+    # hit the honest fallback -- it's a fully valid-shaped Bucket B
+    # match, just semantically wrong, so no NOTE fires either. This is
+    # the one real category the redesign cannot make visible on its own.
+    #
+    # Left as known_issue=True deliberately, even though this specific
+    # capture's containment check (expected_name in actual_name) happens
+    # to pass -- "Rakella, the Tenth" IS a substring of "Rakella, the
+    # Tenth Bion", so this shows up as "known_issue_now_passing" in the
+    # test output. That's a false signal here: containment was chosen as
+    # this suite's pass criterion for the OLD failure mode, where an
+    # "extra word" was obviously-noise-shaped and a human could spot and
+    # discard it at a glance. A fabricated word that itself LOOKS like a
+    # real title word is a more deceptive wrong answer, not a
+    # not-quite-perfect right one -- don't flip this to False just
+    # because the harness's generic heuristic says so.
+    ("Rakella, the Tenth", True),
+    # KNOWN ISSUE, same category as Rakella immediately above (not a
+    # separate bug): "Ivi, the Summoner Aol" (real: "Ivi, the
+    # Summoner") -- "Aol" is exactly 3 characters, tied with the
+    # shortest real title words ever observed ("Red", "Son"), so it
+    # sits exactly on _MIN_TITLE_WORD_LEN's boundary and can't be
+    # rejected without also rejecting those. Same containment-passes-
+    # anyway caveat as Rakella above applies here too.
+    ("Ivi, the Summoner", True),
+    # User-caught documentation bug, not a code bug: this capture
+    # ("Velessa, the Bardiyan-Born", captures/20260930_163313) already
+    # extracted correctly -- added specifically because
+    # assets/mercenary_name_shapes.md's rule ("never uppercase beyond
+    # the first letter") didn't call out that a hyphenated word's SECOND
+    # half can independently capitalize too (also real: "Cyaxan-Made",
+    # "Slack-Jawed"), not just lowercase-continue like "Prowl-linger".
+    # _word_looks_valid's whole-string check already handled this
+    # correctly (core[1:].isupper() only trips when EVERYTHING after the
+    # first letter is uppercase), so this fixture exists to pin the
+    # behavior down and keep the doc/code comments honest, not because
+    # anything needed fixing.
+    ("Velessa, the Bardiyan-Born", False),
 ]
 
 # All 12 known gems (definitions/gems_by_mercenary.json) -- not all have been seen/
@@ -287,7 +354,7 @@ def run_mercenary_name_tests():
 
         name_img = Image.open(name_path)
 
-        actual_name = cp.extract_text(name_img)
+        actual_name = cp.extract_mercenary_name(name_img)
 
         # Name is checked for containment, not equality -- it should never clip a real
         # character, even at the cost of occasionally including an
@@ -488,14 +555,31 @@ def run_gem_presence_tests():
     failed = []
 
     # --- is_gem_present: real positive examples (every gem crop we have) ---
+    # Walks variance/, quadrants/, and blade_ambusher/ too, not just the
+    # 12 canonical top-level references -- a real false negative
+    # (Chain Hook of Trarthus, captures/20260930_162909, scored BELOW
+    # the threshold that was calibrated before the gem corpus grew this
+    # large) slipped through when this only checked the 12 canonical
+    # files. Every real gem crop this project has on hand is a real
+    # positive example; checking only a curated dozen of them meant the
+    # documented "zero overlap" threshold claim could silently go stale
+    # as the corpus grew without this suite ever noticing.
     positive_count = 0
+    gem_positive_paths = []
     for fname in sorted(os.listdir(GEM_TEST_DATA_DIR)):
         path = os.path.join(GEM_TEST_DATA_DIR, fname)
-        if not os.path.isfile(path) or not fname.lower().endswith(".png"):
-            continue
+        if os.path.isfile(path) and fname.lower().endswith(".png"):
+            gem_positive_paths.append(path)
+    for sub in ("variance", "quadrants", "blade_ambusher"):
+        subdir = os.path.join(GEM_TEST_DATA_DIR, sub)
+        for root, _dirs, files in os.walk(subdir):
+            for fname in sorted(files):
+                if fname.lower().endswith(".png"):
+                    gem_positive_paths.append(os.path.join(root, fname))
+    for path in gem_positive_paths:
         positive_count += 1
         if not cp.is_gem_present(Image.open(path)):
-            failed.append(f"is_gem_present(real gem crop {fname}) = False, expected True")
+            failed.append(f"is_gem_present(real gem crop {os.path.relpath(path, GEM_TEST_DATA_DIR)}) = False, expected True")
 
     # --- is_gem_present: real negative examples (currencies + scarabs) ---
     negative_count = 0

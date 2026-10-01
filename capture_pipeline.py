@@ -174,67 +174,41 @@ def capture_full_screen(monitor_index=1):
 # the Claude API, or a mix, without touching the capture/crop plumbing.
 # ---------------------------------------------------------------------------
 
-# Mercenary names can legitimately contain an apostrophe ("Ven'zi Kaldri").
-# Tesseract sometimes reads that glyph as a real apostrophe, sometimes as a
-# curly quote, and sometimes (confirmed on a real capture) as the Unicode
-# replacement character � -- all three must stay INSIDE the run (not
-# just tolerated at the edges, where the leading/trailing [A-Za-z] anchors
-# already exclude them) or the run breaks into two fragments at the
-# apostrophe and max(matches, key=len) silently keeps the wrong (often
-# longer, name-suffix-only) fragment instead of the full name.
-_WORD_RUN_RE = re.compile(r"[A-Za-z][A-Za-z,.\-'‘’� ]*[A-Za-z]")
-# Every mercenary name follows "Name, the Title" -- Tesseract has been seen
-# to misread the comma as a period ("Pahuto. the") and, separately, to
-# drop the space after a correctly-read comma ("Zari,the"). Since the
-# comma-then-space is a fixed, known pattern here (not something that
-# varies name to name), normalizing both failure modes to ", the" is
-# safe rather than guessing at general punctuation/spacing correction.
-_NAME_COMMA_FIX_RE = re.compile(r"^(\w+)[.,]\s*the\b")
+# Broad first-pass filter over raw, noisy Tesseract output: isolates
+# plausible letter-ish runs (a real name plus whatever background art or
+# HUD noise shares the crop) before _find_valid_name_spans does the real
+# work of finding an actual valid name shape somewhere inside one.
+_WORD_RUN_RE = re.compile(r"[A-Za-z][A-Za-z,.\-' ]*[A-Za-z]")
 # The "Infamous" badge icon (crossed-blades art, seen on Ambusher-class
 # mercenaries) has a sub-shape that occasionally survives the letter-
 # shape filter in _isolate_text_row and gets OCR'd as a single stray
-# leading character (observed twice now, always immediately before
-# "Infamous"). Pixel-level fixes for this were tried and rejected: the
-# icon-to-text gap is *smaller* than legitimate internal word-space gaps
-# seen elsewhere, so no gap threshold can exclude the icon without also
-# fragmenting real multi-word text. "Infamous" never legitimately has
-# anything but whitespace before it in this field, so stripping a lone
-# leading letter here is safe and targeted rather than fighting the
-# image heuristics further.
+# leading character, always immediately before "Infamous". Pixel-level
+# fixes for this were tried and rejected: the icon-to-text gap is
+# *smaller* than legitimate internal word-space gaps seen elsewhere, so
+# no gap threshold can exclude the icon without also fragmenting real
+# multi-word text. Shared with parse_mercenary_type() (the type/infamy
+# field, not the name field) -- left untouched by the name-shape
+# validation redesign below, which only concerns the name field.
 _STRAY_ICON_PREFIX_RE = re.compile(r"^[A-Za-z]\s+(?=Infamous\b)")
-# A second, distinct kind of leading noise -- confirmed on a real
-# non-Infamous capture ("ae Ruktara, the Unrelenting", true name
-# "Ruktara, the Unrelenting"): background-art texture at the crop's edge
-# read by --psm 11 as its own short lowercase word, and -- unlike the
-# "Infamous" icon-bleed case above -- landed space-joined onto the real
-# name INSIDE the same _WORD_RUN_RE match rather than as a separable
-# second fragment, so the longest-run heuristic can't strip it on its
-# own. A real mercenary name always starts with a capitalized proper
-# name (never a lowercase word), so any short all-lowercase leading word
-# here is guaranteed noise, not clipped real content.
-_STRAY_NAME_PREFIX_RE = re.compile(r"^[a-z]{1,3}\s+(?=[A-Z])")
-# Same background-art noise, mirrored on the crop's RIGHT edge (confirmed
-# on a real capture, "oe Pradin Prowl-linger af", true name "Pradin
-# Prowl-linger" -- both edges of the isolated row show the same speckled
-# noise texture by eye). A real mercenary name never ends in a lowercase
-# word either (every known real name ends capitalized, incl. the last
-# word of a "Name, the Title" or hyphenated-surname form), so this is
-# the safe suffix mirror of _STRAY_NAME_PREFIX_RE above.
-#
-# A THIRD kind of edge noise -- confirmed on a real capture ("Alak
-# Prowl-linger PORE", true name "Alak Prowl-linger"): not background-art
-# texture this time, but an actual on-screen orange UI badge ("ORB")
-# sitting inside the wide/generous name crop, misread by --psm 11 as
-# "PORE" and space-joined onto the name the same way. Deliberately a
-# SEPARATE all-uppercase alternative rather than widening the lowercase
-# class above to be case-insensitive: a real title can legitimately end
-# in a short Title-Case word (e.g. "the Azadin Howler"), which must
-# never be stripped, but no real name segment is ever rendered fully
-# uppercase, so requiring EVERY letter to be uppercase is what keeps
-# this safe regardless of the noise token's length. No leading-edge
-# instance of this confirmed yet -- add a _STRAY_NAME_PREFIX_RE mirror
-# if/when one turns up, rather than guessing at it now.
-_STRAY_NAME_SUFFIX_RE = re.compile(r"(?<=[A-Za-z])\s+(?:[a-z]{1,3}|[A-Z]{1,6})$")
+# The only two connector words a real mercenary name/title is known to
+# use (see assets/mercenary_name_shapes.md) -- kept as an explicit,
+# easy-to-extend list rather than guessing at what else might exist.
+_NAME_TITLE_CONNECTORS = ("the", "of")
+# A real bug in the shape-validation approach itself, not noise shape
+# #4: title-word consumption in _find_valid_name_spans is greedy, and
+# background/badge noise landing immediately AFTER a complete title can
+# itself be short-but-Title-Case-shaped ("Re", "N", "Aol" -- all
+# confirmed on real captures), which _word_looks_valid alone can't tell
+# apart from a genuine second title word. Checked every title word across
+# all 168 real ground-truth names for a length floor that separates the
+# two: the shortest real title word ever observed is 3 characters
+# ("Red", "Son") -- both real noise instances found (2 and 1 chars) sit
+# below that, so requiring a candidate title word to be at least this
+# long rejects the noise without rejecting anything real seen so far.
+# Does NOT fully solve the problem (a 3-char noise word, "Aol", is
+# genuinely indistinguishable from a real 3-char title word by shape
+# alone -- tracked as a known issue, not guessed at further).
+_MIN_TITLE_WORD_LEN = 3
 
 
 def _isolate_text_row(crop: Image.Image):
@@ -308,43 +282,134 @@ def _isolate_text_row(crop: Image.Image):
     return Image.fromarray(bw)
 
 
+def _word_looks_valid(core: str) -> bool:
+    """True if `core` is shaped like a real name/title word (see
+    assets/mercenary_name_shapes.md): starts uppercase, and contains only
+    letters plus an optional internal apostrophe/hyphen -- never digits
+    or other symbols.
+
+    The "never uppercase beyond the first letter" check (rules out
+    ALL-CAPS noise/badge text like "ORB" or "OT") is deliberately only a
+    whole-string check, not per-hyphen-segment: a hyphenated word's
+    SECOND half can independently start with its own capital too in real
+    names (`Bardiyan-Born`, `Cyaxan-Made`, `Slack-Jawed`), not just a
+    lowercase continuation (`Prowl-linger`, `Quick-hand`) -- both styles
+    are common in the real corpus, confirmed directly, not a rare
+    exception. `core[1:].isupper()` only trips when EVERY remaining
+    character is uppercase, so "Bardiyan-Born"'s lowercase-filled
+    remainder correctly passes while "ORB"/"OT" correctly don't.
+
+    Verified against all 168 unique real names in the ground-truth
+    corpus with zero violations."""
+    if not core:
+        return False
+    if not core[0].isupper():
+        return False
+    if len(core) > 1 and core[1:].isupper():
+        return False
+    return bool(re.fullmatch(r"[A-Za-z](?:[A-Za-z'\-]*[A-Za-z])?", core))
+
+
+def _find_valid_name_spans(raw: str) -> list:
+    """Searches raw OCR text for every contiguous span of words that
+    matches one of this game's 4 confirmed real name shapes (see
+    assets/mercenary_name_shapes.md, derived from all 168 unique real
+    warrant.txt names, zero exceptions):
+
+      - "Word Word" -- exactly two valid words, no comma
+      - "Word, the/of Word[ Word...]" -- one valid word + comma, a
+        connector (_NAME_TITLE_CONNECTORS), then one or more valid words
+
+    This replaces the old approach of picking the single longest OCR
+    "run" and then stripping known noise shapes off its edges with a
+    growing pile of narrowly-scoped regexes (each defending only against
+    one specific noise shape already seen). Searching for a valid shape
+    instead means noise anywhere -- either edge, mixed case, a length
+    tie with real noise, an unrecognized future shape -- simply can't
+    produce a match unless the real name is also intact somewhere in the
+    text, since the search is for what a name IS, not what noise ISN'T.
+
+    Returns every match found, longest (by word count, then by character
+    count) first. Normalizes apostrophe-like glyphs (curly quotes, the
+    Unicode replacement character Tesseract sometimes emits for an
+    unclear glyph) and comma/period noise BEFORE searching, so every
+    downstream check only ever needs to reason about one apostrophe form
+    and a clean ", the"/", of".
+    """
+    for glyph in ("‘", "’", "�"):
+        raw = raw.replace(glyph, "'")
+    # "Pahuto. the" -> "Pahuto, the" (Tesseract's consistent comma/period
+    # misread on this font); "Zari,the" -> "Zari, the" (missing space
+    # after a correctly-read comma).
+    raw = re.sub(r"([A-Za-z])[.,]\s*(the|of)\b", r"\1, \2", raw, flags=re.IGNORECASE)
+
+    spans = []
+    for run in _WORD_RUN_RE.findall(raw):
+        words = run.split()
+        n = len(words)
+        for start in range(n):
+            w0 = words[start]
+            has_comma = w0.endswith(",")
+            core0 = w0[:-1] if has_comma else w0
+            if not _word_looks_valid(core0):
+                continue
+            if has_comma:
+                if start + 1 >= n or words[start + 1].lower() not in _NAME_TITLE_CONNECTORS:
+                    continue
+                connector = words[start + 1]
+                title_words = []
+                i = start + 2
+                while (i < n and not words[i].endswith(",") and _word_looks_valid(words[i])
+                       and len(words[i]) >= _MIN_TITLE_WORD_LEN):
+                    title_words.append(words[i])
+                    i += 1
+                if title_words:
+                    spans.append(f"{core0}, {connector} " + " ".join(title_words))
+            elif start + 1 < n:
+                # A bare-2-word (Bucket C) match is never real if it starts
+                # right after "the"/"of" -- checked against all 168 real
+                # names, that connector never appears anywhere except as
+                # THE title connector, so a 2-word run starting there is
+                # actually a fragment of a corrupted title (confirmed on a
+                # real capture: "Vorrik" itself got mid-word split by OCR,
+                # leaving no valid Bucket A/B match, and "Azadin
+                # Cutthroat" -- really the tail of "..., the Azadin
+                # Cutthroat" -- coincidentally passed as its own fake
+                # Bucket C match).
+                if start > 0 and words[start - 1].lower() in _NAME_TITLE_CONNECTORS:
+                    continue
+                w1 = words[start + 1]
+                if not w1.endswith(",") and _word_looks_valid(w1):
+                    spans.append(f"{core0} {w1}")
+    spans.sort(key=lambda s: (-len(s.split()), -len(s)))
+    return spans
+
+
 def extract_text(crop: Image.Image) -> str:
-    """OCR a text region (name, type/subtype).
+    """OCR a text region -- the type/subtype field (see
+    parse_mercenary_type). For the name field, use
+    extract_mercenary_name() instead: a mercenary name has a confirmed,
+    validatable shape (assets/mercenary_name_shapes.md) that type/subtype
+    text doesn't share (e.g. "Infamous Blade Ambusher" isn't 2 words and
+    has no comma), so the two fields need different cleanup logic and
+    were split into separate functions rather than one shared one trying
+    to serve both.
 
-    Applies glyph-isolation preprocessing (see _isolate_text_row, which
-    is deliberately biased toward including everything real rather than
-    excluding everything fake), then cleans Tesseract's raw output:
-    strips stray leading/trailing symbols by keeping only the longest
-    run of letters/spaces/comma/period/hyphen, and fixes the
-    "Name. the Title" -> "Name, the Title" misread that Tesseract makes
-    consistently on this font's comma glyph.
+    --psm 11 (sparse text, no particular reading order) tried first --
+    the crop is deliberately wide/generous and can contain multiple
+    disconnected clusters of text, and --psm 11 usually finds the real
+    text as one of its several detected fragments. Falls back to --psm 7
+    on the SAME processed crop only if --psm 11 found nothing at all
+    (confirmed with a real capture, two crops of the same text byte-
+    identical in the actual glyph pixels, where --psm 11 deterministically
+    returned nothing on one of them while --psm 7 recovered it
+    immediately) -- kept narrow/cheap here since, unlike the name field,
+    nothing in this investigation found evidence the type field needs the
+    wider retry extract_mercenary_name() uses.
 
-    --psm 11 (sparse text, no particular reading order) tried first,
-    rather than --psm 7 (assume a single text line) -- the crop is
-    deliberately wide/generous and can contain multiple disconnected
-    clusters of text (the real name plus whatever background noise or
-    HUD elements ended up in frame), and --psm 11 usually finds the real
-    text as one of its (possibly several, newline-separated) detected
-    fragments, with the longest-word-run regex below picking that
-    fragment out.
-
-    Falls back to --psm 7 on the SAME processed crop if --psm 11 finds
-    nothing at all. Confirmed with a real capture (two crops of the same
-    mercenary name, byte-identical in the actual text-glyph pixels,
-    differing only in incidental background-art noise at the crop's
-    edges): --psm 11 returned a completely empty result on one of them,
-    deterministically (retried 3x, same empty result every time), while
-    --psm 7 recovered the correct name immediately on that exact same
-    failing crop. So neither mode is reliably strictly better than the
-    other on every real capture -- trying both, in this order, costs a
-    second Tesseract call only in the (otherwise total-failure) case
-    where the first finds nothing.
-
-    Remaining rare per-letter misreads (e.g. y/v confusion on some
-    stylized capitals) are expected -- catch those with the known-values
-    list from the build plan (Phase 2) rather than fighting the OCR
-    engine further; that also flags anything genuinely unrecognized for
-    manual review instead of silently logging a bad string.
+    Picks the single longest word-run, normalizes apostrophe-like glyphs,
+    and strips a stray icon-bleed prefix letter before "Infamous" (see
+    _STRAY_ICON_PREFIX_RE).
     """
     processed = _isolate_text_row(crop)
     if processed is None:
@@ -357,15 +422,69 @@ def extract_text(crop: Image.Image) -> str:
     else:
         return None
     best = max(matches, key=len).strip()
-    # Normalize every apostrophe-like glyph _WORD_RUN_RE let through mid-run
-    # (curly quotes, and Tesseract's � misread) to a plain apostrophe.
     for glyph in ("‘", "’", "�"):
         best = best.replace(glyph, "'")
-    best = _NAME_COMMA_FIX_RE.sub(r"\1, the", best)
     best = _STRAY_ICON_PREFIX_RE.sub("", best)
-    best = _STRAY_NAME_PREFIX_RE.sub("", best)
-    best = _STRAY_NAME_SUFFIX_RE.sub("", best)
     return best or None
+
+
+def extract_mercenary_name(crop: Image.Image) -> str:
+    """OCR the mercenary name field.
+
+    Searches the raw OCR output for a span that actually matches one of
+    this game's confirmed real name shapes (see _find_valid_name_spans /
+    assets/mercenary_name_shapes.md) rather than picking the single
+    longest OCR "run" and stripping known noise shapes off its edges --
+    the approach this replaced needed a new, narrowly-scoped regex every
+    time a new noise shape turned up (icon bleed, background-art texture
+    on either edge, an on-screen UI badge, two candidates tying in
+    length...). Searching for a valid shape instead means noise anywhere
+    simply can't produce a match unless the real name is also intact
+    somewhere in the text, since the search is for what a name IS, not
+    an ever-growing list of what noise ISN'T.
+
+    Always runs BOTH --psm 11 and --psm 7 and pools valid spans from
+    both, rather than stopping at the first pass with any match --
+    stricter than extract_text()'s single-fallback-only-on-emptiness
+    policy, and deliberately so: confirmed on a real capture where --psm
+    11 found a valid-shaped but WRONG, short span (a corrupted first
+    name left only a coincidental fragment of the title looking like its
+    own valid name) while --psm 7 read the same crop as one complete,
+    correct span. Committing to whichever pass happens to produce a
+    match first would have returned the wrong one.
+
+    If NEITHER pass produces a valid name-shaped span, falls back to the
+    single longest raw OCR run across both passes (the old behavior) so
+    nothing regresses below what used to be possible, but logs a NOTE
+    that shape validation failed -- unlike the old code, an unrecognized
+    noise pattern is now visible instead of silently wrong.
+    """
+    processed = _isolate_text_row(crop)
+    if processed is None:
+        return None
+    raw_by_psm = {}
+    all_spans = []
+    for psm in ("11", "7"):
+        raw = pytesseract.image_to_string(processed, config=f"--psm {psm}").strip()
+        if raw:
+            raw_by_psm[psm] = raw
+            all_spans.extend(_find_valid_name_spans(raw))
+    if all_spans:
+        all_spans.sort(key=lambda s: (-len(s.split()), -len(s)))
+        return all_spans[0]
+    for psm in ("11", "7"):
+        raw = raw_by_psm.get(psm, "")
+        matches = _WORD_RUN_RE.findall(raw)
+        if matches:
+            best = max(matches, key=len).strip()
+            for glyph in ("‘", "’", "�"):
+                best = best.replace(glyph, "'")
+            best = _STRAY_ICON_PREFIX_RE.sub("", best)
+            _note(f"name {best!r} didn't match any known real-name shape "
+                  f"(see assets/mercenary_name_shapes.md) -- logged as-is, best "
+                  f"effort only; check the capture's name.png by eye.")
+            return best or None
+    return None
 
 
 _INFAMOUS_PREFIX_RE = re.compile(r"^Infamous\s+", re.IGNORECASE)
@@ -1316,22 +1435,38 @@ RUCKSACK_GEM_PRESENCE_THRESHOLD = 0.8088
 
 # Real validation numbers (AI_RAMBLINGS.md's "Embeddings for gem
 # PRESENCE" and its ONNX-export follow-up): a frozen, ImageNet-pretrained
-# ResNet18's penultimate-layer features, compared by cosine similarity,
-# checked against every real gem sample and every real non-gem sample on
-# hand (35 vs. 62) -- real gem floor 0.9202, real non-gem ceiling 0.8273,
-# ZERO overlap. This threshold sits at their midpoint, same convention as
-# every presence threshold before it, but with a real ~0.093 margin
-# instead of the razor's edge that eventually broke pixel correlation
-# three times over (GEM_PRESENCE_THRESHOLD/RUCKSACK_GEM_PRESENCE_THRESHOLD
-# above). Unlike the pixel-correlation approach, plain isolated per-
-# quadrant crops score well here with no multi-scale/position search
-# needed -- a global-average-pooled CNN embedding isn't nearly as
-# sensitive to small alignment differences as raw pixel correlation was,
-# so is_gem_present_in_rucksack() no longer needs _glue_rucksack_region/
+# ResNet18's penultimate-layer features, compared by cosine similarity.
+# Unlike the pixel-correlation approach, plain isolated per-quadrant
+# crops score well here with no multi-scale/position search needed -- a
+# global-average-pooled CNN embedding isn't nearly as sensitive to small
+# alignment differences as raw pixel correlation was, so
+# is_gem_present_in_rucksack() no longer needs _glue_rucksack_region/
 # _icon_similarity_score_multiscale at all (both kept below, unused for
 # presence now, since they're still relevant to the separate, still-open
 # identity-matching improvement idea logged in AI_RAMBLINGS.md).
-GEM_EMBEDDING_PRESENCE_THRESHOLD = 0.8737
+#
+# RECALIBRATED from the original 0.8737 -- that value's own comment
+# claimed "real gem floor 0.9202, ZERO overlap" against 35 gem/62
+# non-gem samples, but never got revisited as the gem corpus grew
+# through this project's later harvesting work (57 real gem samples on
+# hand by the time this was rechecked, including every variance/
+# quadrants/blade_ambusher crop, not just the 12 canonical references).
+# A real capture (Chain Hook of Trarthus, visually confirmed identical
+# to the canonical reference -- captures/20260930_162909) scored 0.8608,
+# BELOW the old 0.8737 threshold -- a real, reproducible false negative
+# in the production-critical presence path (unlike match_icon's
+# identity matching, this DOES determine live output). Recomputed
+# against the FULL current sample set: real gem floor 0.8608, real
+# non-gem ceiling 0.8218 (currencies + scarabs) -- still zero overlap,
+# just a real ~0.039 margin instead of the stale, no-longer-accurate
+# 0.093 one. This threshold sits at the new midpoint. Confirmed this
+# doesn't flip any of the 36 known real negatives or any of the other
+# 56 known real gem samples -- see run_gem_presence_tests(), now scanning
+# every variance/quadrants/blade_ambusher crop as a positive example too
+# (not just the 12 canonical references), specifically so a future
+# threshold drift like this one gets caught automatically instead of
+# waiting for a real capture to slip through.
+GEM_EMBEDDING_PRESENCE_THRESHOLD = 0.8413
 
 GEM_EMBEDDING_MODEL_PATH = os.path.join("assets", "models", "gem_embedding_resnet18.onnx")
 GEM_EMBEDDING_REFERENCES_PATH = os.path.join("assets", "models", "gem_reference_embeddings.json")
@@ -2111,7 +2246,7 @@ def process_capture(crops: dict) -> dict:
     GEM_PRESENCE_THRESHOLD's code comment and assets/README.md); no
     threshold fix existed for that, only real search room did.
     """
-    mercenary_name = extract_text(crops["name"])
+    mercenary_name = extract_mercenary_name(crops["name"])
     if mercenary_name is None:
         # Unlike match_mercenary_type/match_skill_name, extract_text has
         # no fuzzy-match pool to fall back on -- a total OCR failure here
