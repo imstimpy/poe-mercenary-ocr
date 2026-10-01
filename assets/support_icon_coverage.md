@@ -19,15 +19,15 @@ combinations** across the 265 real supports.
 
 ```
 159 total (icon, tier) keys needed
-148 covered   (93 confidently labeled from ground truth alone,
+149 covered   (94 confidently labeled from ground truth alone,
                0 only resolved with a manual_labels.json visual ID,
                16 genuinely ambiguous -- two+ different real supports
                proven to share pixels, not an unresolved gap; see
                AI_RAMBLINGS.md's Minion Damage/Minion Life writeup)
- 11 missing entirely -- no harvested crop at all yet
+ 10 missing entirely -- no harvested crop at all yet
 ```
 
-**4 of 11 missing keys are tier "I" (Lesser)**, 7 are other tiers. Real captures skew toward high-tier rolls (see AI_RAMBLINGS.md's `SupportCountTier` section), so the low end of a support's own trio is inherently the rarest roll to catch on camera. For most of these you already have coverage of the SAME support's other tiers from the SAME kind of skill/mercenary -- nothing new to hunt for, just more captures of what you're already getting.
+**4 of 10 missing keys are tier "I" (Lesser)**, 6 are other tiers. Real captures skew toward high-tier rolls (see AI_RAMBLINGS.md's `SupportCountTier` section), so the low end of a support's own trio is inherently the rarest roll to catch on camera. For most of these you already have coverage of the SAME support's other tiers from the SAME kind of skill/mercenary -- nothing new to hunt for, just more captures of what you're already getting.
 
 ## Missing crops -- hunting targets
 
@@ -39,7 +39,6 @@ single example is just a place to start, not the only source. Sorted easiest
 | Support | Example skill | Example mercenary | Skills that can roll it |
 |---|---|---|---|
 | Lesser Generosity (Tier I) | Smite | Warpriest | 1 |
-| Greater Generosity (Tier III) | Smite | Warpriest | 1 |
 
 ## Supports unlikely to ever get a captured reference
 
@@ -85,5 +84,4 @@ Zero warrants show this on pathofexile.com/trade, and every one of the 45 distin
 ## Notes
 
 - **Lesser Generosity (Tier I)** is a genuinely narrow case (1 skill option total) -- everything else missing has more independent skill options.
-- **Greater Generosity (Tier III)** is a genuinely narrow case (1 skill option total) -- everything else missing has more independent skill options.
 - This list needs a re-run once you've captured more; re-run `harvest_support_icons.py` then this script rather than editing this table by hand as gaps close.
