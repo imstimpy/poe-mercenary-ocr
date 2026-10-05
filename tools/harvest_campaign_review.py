@@ -1,5 +1,5 @@
 """
-Isolated, icon-recognition-free review pipeline for `captures_campaign/`
+Isolated, icon-recognition-free review pipeline for `captures/campaign/`
 -- deliberately separate from harvest_support_icons.py and everything
 under assets/harvested_supports/. Purpose: build an independent "shadow
 ground truth" for sub-68 mercenaries (a real warrant is structurally
@@ -24,7 +24,7 @@ loop, see .claude/skills/campaign-review/SKILL.md):
 
 Each run first checks the clipboard for a completed review page's
 copied JSON and merges any valid entries into manual_truth.json, then
-rescans captures_campaign/ fresh and regenerates review.html for
+rescans captures/campaign/ fresh and regenerates review.html for
 whatever's still unresolved (including any brand new captures since the
 last run). Nothing here is required to run in any particular directory
 relationship to capture_pipeline.py's own campaign-mode captures beyond
@@ -34,13 +34,13 @@ both agreeing on CAMPAIGN_CAPTURE_DIR's location.
 manual_truth.json -- a hash promoted into the production catalog (see
 tools/promote_campaign_truth.py) is deliberately removed from
 manual_truth.json, but its real capture is still sitting in
-captures_campaign/ unchanged, and would otherwise resurface as if
+captures/campaign/ unchanged, and would otherwise resurface as if
 nobody had ever answered it (a real, reproduced bug: an old capture
 reappeared as "needs review" the run right after its hash got
 promoted). A promoted hash is exactly as resolved as an unpromoted one,
 just recorded in a different file -- read-only here, never written.
 
-Reads: captures_campaign/*/supports.png + warrant_generated.txt,
+Reads: captures/campaign/*/supports.png + warrant_generated.txt,
     definitions/supports_by_skills.json, definitions/supports.json,
     assets/harvested_supports/campaign_promotions.json (read-only)
 Writes: assets/campaign_review/manual_truth.json (full_hash -> exact
@@ -71,7 +71,7 @@ PROJECT_ROOT = os.path.dirname(TOOLS_DIR)
 sys.path.insert(0, TOOLS_DIR)
 import harvest_support_icons as harvester
 
-CAMPAIGN_CAPTURE_DIR = os.path.join(PROJECT_ROOT, "captures_campaign")
+CAMPAIGN_CAPTURE_DIR = os.path.join(PROJECT_ROOT, "captures", "campaign")
 SUPPORTS_BY_SKILLS_PATH = os.path.join(PROJECT_ROOT, "definitions", "supports_by_skills.json")
 SUPPORTS_PATH = os.path.join(PROJECT_ROOT, "definitions", "supports.json")
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "assets", "campaign_review")
@@ -81,7 +81,7 @@ CROPS_DIR = os.path.join(OUTPUT_DIR, "crops")
 # A promoted hash (see tools/promote_campaign_truth.py) is deliberately
 # REMOVED from manual_truth.json once it's also a production reference
 # image -- but the real capture that originally produced it is still
-# sitting in captures_campaign/ untouched, and any OTHER real encounter
+# sitting in captures/campaign/ untouched, and any OTHER real encounter
 # that happens to roll the exact same (icon, tier) hashes identically
 # too. Without also checking this file, this script has no way to know
 # that hash is already fully resolved, and would keep resurfacing it as
@@ -108,8 +108,8 @@ def _load_json(path, default):
 
 
 def scan_clusters():
-    """Walks every capture in captures_campaign/ (only -- never
-    captures/ or any __captures_*/ archive) and clusters occupied cells
+    """Walks every capture in captures/campaign/ (only -- never
+    the other captures/ buckets) and clusters occupied cells
     by exact pixel hash, same primitive harvest_support_icons.py uses
     for its own clustering (imported directly, not reimplemented -- see
     AI_RAMBLINGS.md's note on match_icon logic moving into shared calls

@@ -15,7 +15,7 @@ wired into the live capture path.
 **Before running step 1, check `git status` on `assets/harvested_supports/`
 if there's any chance manual identification work is in progress.** This
 step hard-deletes and rebuilds every top-level PNG in that folder from
-`captures/` + `tier_notes.json` + `manual_labels.json` -- it does NOT
+`captures/endgame/`, `captures/campaign_archive/`, `captures/legacy/` + `tier_notes.json` + `manual_labels.json` -- it does NOT
 read whatever is currently sitting in the folder. A real incident this
 project hit: the user manually renamed several `unlabeled_*.png` files
 to their identified names directly on disk (not through
@@ -44,7 +44,7 @@ cd tools
 python harvest_support_icons.py
 ```
 
-Scans every capture in `captures/` and every `__captures_*/` archive,
+Scans every capture in `captures/endgame/`, `captures/campaign_archive/` and `captures/legacy/`,
 using each one's `warrant.txt` as ground truth first (falls back to
 inferring from `warrant_generated.txt` only when no real `warrant.txt`
 exists). For crops text-narrowing alone can't finish resolving, it also

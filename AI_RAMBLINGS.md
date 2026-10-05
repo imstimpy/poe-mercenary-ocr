@@ -5200,3 +5200,39 @@ of Clustering, Kinetic Rain of Impact) show Sacred Wisps support on pathofexile.
 Sacred Wisps (III) is suspected not available in-game. That is exactly how it is already flagged in
 assets/support_icon_coverage_notes.json ("Suspected non-live"), so no data or report change was needed.
 The Power Siphon mention above was a mix-up; Power Siphon's support list has no Wisps entry.
+
+## Capture archive reorganized by purpose (2026-10-05)
+
+738 capture folders moved (rename only; old->new map in logs/capture_move_map.tsv, gitignored):
+
+- `captures/endgame/`          558  (old `captures/` + `__captures_20260914/15/16`) -- new captures save here
+- `captures/campaign/`          89  (old `captures_campaign/`) -- campaign mode saves here; isolated from the harvest
+- `captures/campaign_archive/`  30  (old `__captures_campaign_20260917/`) -- harvested, unlike `campaign/`
+- `captures/legacy/`            61  (old `__captures_20260910/`) -- no warrants, pre-dates level.png
+
+Deliberately NOT merged: the two campaign sets. The old globs made `__captures_campaign_20260917` part of
+the support harvest (it matched `__captures_*`) while `captures_campaign` was excluded and reviewed through
+its own pipeline, so merging them would have silently changed the harvest input. The old plan said to merge.
+
+Changed: CAPTURE_DIR / CAMPAIGN_CAPTURE_DIR (capture_pipeline.py), harvest_support_icons.find_capture_dirs
+(endgame + campaign_archive + legacy, the same set as before), harvest_campaign_review.py,
+gather_unique_mercenaries.CAPTURE_PATTERNS (`captures/*/*`), docs/skills. Rematch-identity test cases now
+read copies of their 16 warrant files from test_data/rematch_identity/ instead of the gitignored archive.
+
+Verified: full suite no regressions (names 33/36, rematch 13/13, gem presence 77/36); Sniper stats unchanged
+(33 captures -> 26 distinct). Support harvest: same corpus in old vs new discovery order gives byte-identical
+catalog PNGs; only manifest.json differs, in each cluster's cited example capture and the variants/ file
+choice (both order-dependent, neither read by matching). The re-harvest also picked up 25 modified + 12 new
+unlabeled PNGs from the ~84 captures taken since the last commit -- corpus growth, not the move.
+assets/models/support_reference_embeddings.json was NOT re-exported.
+
+Empty old directories (`__captures_*`, `captures_campaign`) could not be deleted -- access denied by the OS.
+
+Bad warrant found and removed (2026-10-05): captures/endgame/20261005_055345 (Laua, the Runaway, Ripper)
+had a warrant.txt for a different mercenary (Ryxelle, the Polished) -- byte-identical to the one in
+20261005_060112, written 23 s later. The harvest trusts a real warrant as ground truth, so it produced 10
+`ground_truth_ambiguous` + 2 `inferred` clusters (12 unlabeled_*.png) and re-labeled ~10 existing crops as
+ambiguous. Bisected by corpus cutoff (0 ambiguous at 20261005_055123, 10 at 20261005_055345). Deleted the
+warrant.txt (a duplicate, no data lost; the capture's own warrant_generated.txt reads as a Ripper) and
+re-ran the harvest: 0 unlabeled files, 0 ground_truth_ambiguous. Lesson: a real warrant.txt is trusted
+unconditionally, so a mis-pasted one silently corrupts the catalog and the rematch/skill stats.

@@ -58,7 +58,7 @@ Must run from the project root (imports capture_pipeline, which resolves
 its own asset paths relative to cwd).
 
 Reads: assets/harvested_supports/ (reference catalog + manifest.json for
-    occurrence counts), definitions/supports.json, captures/, __captures_*/
+    occurrence counts), definitions/supports.json, captures/*/ (endgame, campaign_archive, legacy)
     (validation crops via real warrant.txt)
 Writes: nothing -- report to stdout only
 """

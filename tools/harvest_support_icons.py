@@ -33,7 +33,7 @@ gap below level 68**: a mercenary warrant genuinely cannot be obtained
 at all before then (real game constraint, confirmed directly), so
 every sub-68 capture is permanently inference-only -- there's no later
 "go back and get the real warrant.txt" for these, unlike a merely
-under-captured high-level skill. `__captures_campaign/` (all sub-35)
+under-captured high-level skill. `captures/campaign_archive/` (all sub-35)
 is the extreme case: 0 of 20 sessions have a `warrant.txt`, and never
 will. See AI_RAMBLINGS.md's Tier I support detection writeup for what
 this means for coverage below Tier II.
@@ -543,7 +543,7 @@ def parse_warrant_skills(text: str) -> Optional[List[str]]:
     manifest.json anomalies (empty candidate set) and ambiguous-inferred
     entries whose `contributing_skills` were themselves support names
     like "Impale Chance (Tier: 2)" instead of real skill names -- not a
-    hypothetical, confirmed directly against __captures_campaign's real
+    hypothetical, confirmed directly against captures/campaign_archive's real
     warrant_generated.txt files. Fixed by only taking the FIRST line
     after each separator (the skill name itself) and skipping every
     other line until the next separator resets that expectation.
@@ -629,8 +629,9 @@ def parse_warrant_ground_truth(text: str) -> List[Tuple[str, List[Tuple[str, int
 
 def find_capture_dirs() -> List[str]:
     patterns = [
-        os.path.join(PROJECT_ROOT, "captures", "*"),
-        os.path.join(PROJECT_ROOT, "__captures_*", "*"),
+        os.path.join(PROJECT_ROOT, "captures", "endgame", "*"),
+        os.path.join(PROJECT_ROOT, "captures", "campaign_archive", "*"),
+        os.path.join(PROJECT_ROOT, "captures", "legacy", "*"),
     ]
     dirs = []
     for pattern in patterns:

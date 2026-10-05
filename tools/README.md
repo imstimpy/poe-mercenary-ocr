@@ -24,7 +24,7 @@ These bespoke tools extract assets from the game data and transform them into a 
 
  - `harvest_support_icons.py` - Builds labeled support icon references from encounters.
    - Run: `python harvest_support_icons.py` (no arguments; safe to run from `tools/` or the project root)
-   - Reads: `captures/`, `__captures_*/`, and the hand-maintained `tier_notes.json` / `manual_labels.json` overrides alongside its output
+   - Reads: `captures/endgame/`, `captures/campaign_archive/`, `captures/legacy/`, and the hand-maintained `tier_notes.json` / `manual_labels.json` overrides alongside its output
    - Writes: `assets/harvested_supports/`
 
  - `generate_support_coverage_report.py` - Regenerates the missing/weak support-icon coverage report. Run after `harvest_support_icons.py`. Splits missing keys that structurally can't or probably won't ever get a captured reference into their own groups (a data-proven zero-breadth group, and a hand-flagged "suspected non-live" group -- see `assets/support_icon_coverage_notes.json`) instead of cluttering the main hunting-targets table with them.
@@ -34,7 +34,7 @@ These bespoke tools extract assets from the game data and transform them into a 
 
  - `match_support_icon.py` - Support-icon classifier accuracy report against real `warrant.txt` ground truth (100% on every real crop on hand). The classifier itself is promoted into `capture_pipeline.py` (`match_support_icon`/`extract_support_names`); this script is now just its validation/regression report.
    - Run: `python match_support_icon.py` (no arguments; run from the project root)
-   - Reads: `assets/harvested_supports/`, `definitions/supports.json`, `captures/`, `__captures_*/`
+   - Reads: `assets/harvested_supports/`, `definitions/supports.json`, `captures/endgame/`, `captures/campaign_archive/`, `captures/legacy/`
 
  - `export_support_reference_embeddings.py` - Precomputes support-icon reference embeddings for production use. Run after `harvest_support_icons.py`.
    - Run: `python export_support_reference_embeddings.py` (no arguments; run from the project root)
@@ -52,9 +52,9 @@ These bespoke tools extract assets from the game data and transform them into a 
    - Reads: `assets/harvested_supports/manifest.json`
    - Writes: `assets/harvested_supports/manual_review.html` (gitignored -- regenerate it fresh rather than reusing a stale copy)
 
- - `harvest_campaign_review.py` - Isolated, icon-recognition-free reviewer for `captures_campaign/` only (never `captures/` or any `__captures_*/` archive -- structurally excluded by `harvest_support_icons.py`'s own glob patterns, not just convention). Builds an independent "shadow ground truth" for sub-68 mercenaries by having a human read each support's real name/tier off the in-game tooltip; candidates shown are anchored only to the contributing skill(s)' real `PossibleSupports`, never to icon matching. Never touches `assets/harvested_supports/`, `manual_labels.json`, `tier_notes.json`, or the reference embeddings -- the whole point is auditing that pipeline independently of it. See `.claude/skills/campaign-review/SKILL.md` for the live capture-and-review loop this is meant to run inside.
+ - `harvest_campaign_review.py` - Isolated, icon-recognition-free reviewer for `captures/campaign/` only (never `captures/endgame/`, `captures/campaign_archive/` or `captures/legacy/` -- structurally excluded by `harvest_support_icons.py`'s own glob patterns, not just convention). Builds an independent "shadow ground truth" for sub-68 mercenaries by having a human read each support's real name/tier off the in-game tooltip; candidates shown are anchored only to the contributing skill(s)' real `PossibleSupports`, never to icon matching. Never touches `assets/harvested_supports/`, `manual_labels.json`, `tier_notes.json`, or the reference embeddings -- the whole point is auditing that pipeline independently of it. See `.claude/skills/campaign-review/SKILL.md` for the live capture-and-review loop this is meant to run inside.
    - Run: `python harvest_campaign_review.py` (no arguments; run from `tools/` or the project root; safe to run repeatedly)
-   - Reads: `captures_campaign/*/supports.png` + `warrant_generated.txt`, `definitions/supports_by_skills.json`, `definitions/supports.json`, `assets/harvested_supports/campaign_promotions.json` (read-only -- a promoted hash counts as already answered, see `promote_campaign_truth.py` below), and the system clipboard (for a completed review page's copied answers)
+   - Reads: `captures/campaign/*/supports.png` + `warrant_generated.txt`, `definitions/supports_by_skills.json`, `definitions/supports.json`, `assets/harvested_supports/campaign_promotions.json` (read-only -- a promoted hash counts as already answered, see `promote_campaign_truth.py` below), and the system clipboard (for a completed review page's copied answers)
    - Writes: `assets/campaign_review/manual_truth.json` (the actual data -- not gitignored), `assets/campaign_review/review.html` + `crops/*.png` (both gitignored, regenerated fresh each run)
 
  - `audit_campaign_truth.py` - Read-only audit: checks `capture_pipeline.match_support_icon()` against `manual_truth.json`, the independent shadow ground truth `harvest_campaign_review.py` built. This is the actual point of the whole campaign-review pipeline -- `match_support_icon.py`'s own 100% figure is measured almost entirely on Tier II/III data, since a real warrant.txt is structurally impossible below level 68.

@@ -16,7 +16,7 @@ confirmation for -- exactly the blind spot the campaign audit pipeline
 exists to probe. Checked directly once already (see AI_RAMBLINGS.md's
 follow-up to the Mitigation Ignore investigation): of 95 Tier I
 manifest entries traced to one historical archive alone
-(__captures_campaign_20260917), only 26 had ever been independently
+(now captures/campaign_archive/), only 26 had ever been independently
 re-confirmed this way -- all in agreement, a genuinely reassuring
 result, but worth tracking as an ongoing, regenerable number instead of
 a one-off check.

@@ -16,9 +16,13 @@ To capture mercenary data:
 
 ### Outputs
 An encounter is captured in multiple places:
- - In a `captures` folder, made unique by a timestamp. Each encounter stores images of the mercenary UI (name, equipment, skills, warrant, etc).
- - In a `logs` folder, stored into a tsv. Each encounter stores the timestamp and details of the encounter (name, infamy, gems, map) which can be imported into a spreadsheet.
- - In the global clipboard, as a means to paste into a spreadsheet.
+ 1. In a `captures` folder, made unique by a timestamp. Assets include extracted images from mercenary UI (name, equipment, skills, etc) and its generated warrant. Captures are grouped by purpose:
+   - `captures/endgame/<timestamp>/` -- lvl68+ map captures (default location for captures).
+   - `captures/campaign/<timestamp>/` -- sub-lvl 68 campaign captures (saved here when campaign mode is chosen); scanned by `tools/harvest_campaign_review.py` and kept out of the support harvest.
+   - `captures/campaign_archive/<timestamp>/` -- post-reviewed batch of campaign captures that the support harvest does read.
+   - `captures/legacy/<timestamp>/` -- the earliest batch, from before warrants/levels were captured.
+ 2. In a `logs` folder, stored into a tsv. Each encounter stores the timestamp and details of the encounter (name, infamy, gems, map) which can be imported into a spreadsheet.
+ 3. In the global clipboard, as a means to paste into a spreadsheet.
 
 #### Warrants
 A mercenary warrant is generated from the mercenary UI. This output is intended to exactly match* a CTRL+C of a warrant accessed by a "Rematch".

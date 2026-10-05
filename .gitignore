@@ -11,7 +11,7 @@ assets/harvested_supports/variants/
 assets/harvested_supports/manual_review.html
 
 # Same for the isolated campaign shadow-ground-truth reviewer -- crops/
-# and review.html regenerate fresh from captures_campaign/ each run (see
+# and review.html regenerate fresh from captures/campaign/ each run (see
 # tools/harvest_campaign_review.py); manual_truth.json is the actual
 # hand-curated data and is NOT ignored.
 assets/campaign_review/review.html

@@ -40,7 +40,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # not assets/ (which holds committed reference data).
 OUTPUT_PATH = os.path.join(PROJECT_ROOT, "logs", "mercenary_identities.json")
 DEFINITIONS_PATH = os.path.join(PROJECT_ROOT, "definitions", "skills_by_mercenary.json")
-CAPTURE_PATTERNS = ("captures/*", "__captures_*/*", "captures_campaign/*")
+CAPTURE_PATTERNS = ("captures/*/*",)
 
 NAME_SIMILARITY_MIN = 0.85
 

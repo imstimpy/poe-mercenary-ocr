@@ -46,8 +46,8 @@ except ImportError:
     _CLIPBOARD_AVAILABLE = False
 
 CONFIG_PATH = "definitions/mercenary_regions.json"
-CAPTURE_DIR = "captures"
-CAMPAIGN_CAPTURE_DIR = "captures_campaign"
+CAPTURE_DIR = "captures/endgame"
+CAMPAIGN_CAPTURE_DIR = "captures/campaign"
 LOG_PATH = "logs/mercenary_log.tsv"
 HOTKEY = "f9"
 

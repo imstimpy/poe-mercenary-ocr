@@ -1,6 +1,6 @@
 ---
 name: campaign-review
-description: Runs the isolated campaign shadow-ground-truth reviewer (tools/harvest_campaign_review.py) -- scans captures_campaign/ only, merges any answers copied from the review page's clipboard output into manual_truth.json, and regenerates the review page for whatever's newly captured or still unresolved. Use whenever the user asks to run/refresh the campaign review, process a new campaign capture, "run the campaign harvest", or wants to record their tooltip-read identification of a just-captured sub-68 mercenary's supports. This is a single fast command, not the full support-coverage-refresh pipeline -- never touches assets/harvested_supports/, manual_labels.json, tier_notes.json, or the reference embeddings.
+description: Runs the isolated campaign shadow-ground-truth reviewer (tools/harvest_campaign_review.py) -- scans captures/campaign/ only, merges any answers copied from the review page's clipboard output into manual_truth.json, and regenerates the review page for whatever's newly captured or still unresolved. Use whenever the user asks to run/refresh the campaign review, process a new campaign capture, "run the campaign harvest", or wants to record their tooltip-read identification of a just-captured sub-68 mercenary's supports. This is a single fast command, not the full support-coverage-refresh pipeline -- never touches assets/harvested_supports/, manual_labels.json, tier_notes.json, or the reference embeddings.
 ---
 
 # Campaign shadow ground truth review
@@ -15,8 +15,8 @@ Each run does two things in order:
 1. Checks the clipboard for JSON copied from a previous
    `assets/campaign_review/review.html` session and merges any valid
    answers into `assets/campaign_review/manual_truth.json`.
-2. Rescans `captures_campaign/` fresh (only that directory -- never
-   `captures/` or any `__captures_*/` archive) and regenerates
+2. Rescans `captures/campaign/` fresh (only that directory -- never
+   `captures/endgame/`, `captures/campaign_archive/` or `captures/legacy/`) and regenerates
    `review.html` for whatever's newly captured or still unresolved.
 
 Safe to run repeatedly with nothing new to do -- it just reports
@@ -43,8 +43,8 @@ independent).
 Intended to run WHILE a campaign encounter is on screen, per capture:
 
 1. In `capture_pipeline.py`, choose `[C]` at startup (or already running
-   in campaign mode) so the capture saves to `captures_campaign/`
-   instead of `captures/`.
+   in campaign mode) so the capture saves to `captures/campaign/`
+   instead of `captures/endgame/`.
 2. Press the capture hotkey over the paused encounter.
 3. Run this skill / `python tools/harvest_campaign_review.py`.
 4. Open `assets/campaign_review/review.html`. For each crop, hover the
