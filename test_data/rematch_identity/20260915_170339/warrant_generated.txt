@@ -1,0 +1,25 @@
+Item Class: Map Fragments
+Rarity: Normal
+Mercenary Warrant
+--------
+Dom, the Cuckoo
+--------
+Build: Blade Ambusher
+Mercenary Level: 83
+--------
+Blade Trap
+--------
+Trarthan Agility
+--------
+Spectral Helix of Trarthus
+--------
+Spectral Throw of Trarthus
+--------
+Smoke Mine
+--------
+Summon Skitterbots
+--------
+Right click this item to view Mercenary details.
+Can be used in a personal Map Device alongside a Map to have this previously fought Mercenary reappear in the area for a rematch.
+
+# unrecognized skill row(s), dropped: BS, Fe]

@@ -1,0 +1,34 @@
+Item Class: Map Fragments
+Rarity: Normal
+Mercenary Warrant
+--------
+Zargan, the Keitan Brute
+--------
+Build: Infamous Striker
+Mercenary Level: 83
+--------
+Vigilant Strike
+Greater Melee Physical Damage (Tier: 3)
+Strike Distance (Tier: 2)
+Greater Cooldown Recovery (Tier: 3)
+More Duration (Tier: 2)
+Second Wind (Tier: 3)
+--------
+Enduring Cry
+Raging Cry (Tier: 2)
+More Duration (Tier: 2)
+--------
+Physical Aegis
+--------
+Dual Strike
+Greater Strike Distance (Tier: 3)
+Melee Physical Damage (Tier: 2)
+Multistrike (Tier: 2)
+Greater Fortify (Tier: 3)
+--------
+Determination
+--------
+Vitality
+--------
+Right click this item to view Mercenary details.
+Can be used in a personal Map Device alongside a Map to have this previously fought Mercenary reappear in the area for a rematch.

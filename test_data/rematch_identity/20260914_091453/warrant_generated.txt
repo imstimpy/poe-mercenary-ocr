@@ -1,0 +1,22 @@
+Item Class: Map Fragments
+Rarity: Normal
+Mercenary Warrant
+--------
+Cal, the Woebegone
+--------
+Build: Blade Ambusher
+--------
+Blade Trap
+--------
+Trarthan Agility
+--------
+Spectral Helix of Trarthus
+--------
+Spectral Throw of Trarthus
+--------
+Summon Skitterbots
+--------
+Smoke Mine
+--------
+Right click this item to view Mercenary details.
+Can be used in a personal Map Device alongside a Map to have this previously fought Mercenary reappear in the area for a rematch.

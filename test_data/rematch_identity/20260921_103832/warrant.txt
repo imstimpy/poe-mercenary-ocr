@@ -1,0 +1,38 @@
+Item Class: Map Fragments
+Rarity: Normal
+Mercenary Warrant
+--------
+Velthara, the Cyaxan-Made
+--------
+Build: Infamous Cruel Mistress
+Mercenary Level: 83
+--------
+Despair
+Increased Area of Effect (Tier: 2)
+Lesser Spell Cascade (Tier: 1)
+--------
+Void Sphere
+Greater More Duration (Tier: 3)
+Greater Critical Chance (Tier: 3)
+--------
+Soulrend of Reaping
+Chaos Penetration (Tier: 2)
+Added Chaos (Tier: 2)
+Wither on Hit (Tier: 2)
+Faster Casting (Tier: 2)
+--------
+Forbidden Rite Totem
+Critical Chance (Tier: 2)
+Increased Area of Effect (Tier: 2)
+Added Chaos (Tier: 2)
+Chaos Penetration (Tier: 2)
+Greater Wither on Hit (Tier: 3)
+--------
+Lightning Warp
+Faster Casting (Tier: 2)
+Less Duration (Tier: 2)
+--------
+Envy
+--------
+Right click this item to view Mercenary details.
+Can be used in a personal Map Device alongside a Map to have this previously fought Mercenary reappear in the area for a rematch.

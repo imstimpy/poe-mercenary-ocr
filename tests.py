@@ -1379,14 +1379,14 @@ _SUPPORT_TIER_SUFFIX_RE = re.compile(r"\s+(I|II|III)$")
 
 # (capture dir A, capture dir B, should merge as the same mercenary, why)
 REMATCH_IDENTITY_CASES = [
-    ("captures/20260916_165244", "captures/20260916_204518", True, "Braxol, the Swindler -- plain rematch"),
-    ("captures/20260922_174144", "captures/20260923_083326", True, "Ivi, the Summoner -- name OCR noise ('Aol') must not block the merge"),
-    ("captures/20260922_173051", "captures/20260923_083557", True, "Ventaro Death-dealer -- OCR 'Death- dealer' spacing noise"),
-    ("captures/20260928_212700", "captures/20260929_061745", True, "Malkan, the Azadin Agent -- plain rematch"),
-    ("__captures_20260914/20260913_060818", "captures/20260921_103832", False, "Velthara, the Cyaxan-Made -- same name, different roll: two mercenaries"),
-    ("__captures_20260914/20260913_101923", "captures/20260922_174314", False, "Orvan, the Keitan Convert -- same name AND skills, different supports (the real name+skills collision)"),
-    ("__captures_20260914/20260914_060720", "captures/20260922_062304", False, "Zargan, the Keitan Brute -- same name, different skills (Striker)"),
-    ("__captures_20260915/20260914_091453", "__captures_20260916/20260915_170339", False, "identical skills, no supports extracted, different names -- must not merge"),
+    ("test_data/rematch_identity/20260916_165244", "test_data/rematch_identity/20260916_204518", True, "Braxol, the Swindler -- plain rematch"),
+    ("test_data/rematch_identity/20260922_174144", "test_data/rematch_identity/20260923_083326", True, "Ivi, the Summoner -- name OCR noise ('Aol') must not block the merge"),
+    ("test_data/rematch_identity/20260922_173051", "test_data/rematch_identity/20260923_083557", True, "Ventaro Death-dealer -- OCR 'Death- dealer' spacing noise"),
+    ("test_data/rematch_identity/20260928_212700", "test_data/rematch_identity/20260929_061745", True, "Malkan, the Azadin Agent -- plain rematch"),
+    ("test_data/rematch_identity/20260913_060818", "test_data/rematch_identity/20260921_103832", False, "Velthara, the Cyaxan-Made -- same name, different roll: two mercenaries"),
+    ("test_data/rematch_identity/20260913_101923", "test_data/rematch_identity/20260922_174314", False, "Orvan, the Keitan Convert -- same name AND skills, different supports (the real name+skills collision)"),
+    ("test_data/rematch_identity/20260914_060720", "test_data/rematch_identity/20260922_062304", False, "Zargan, the Keitan Brute -- same name, different skills (Striker)"),
+    ("test_data/rematch_identity/20260914_091453", "test_data/rematch_identity/20260915_170339", False, "identical skills, no supports extracted, different names -- must not merge"),
 ]
 
 

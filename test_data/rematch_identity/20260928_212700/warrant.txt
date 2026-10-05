@@ -1,0 +1,35 @@
+Item Class: Map Fragments
+Rarity: Normal
+Mercenary Warrant
+--------
+Malkan, the Azadin Agent
+--------
+Build: Infamous Bladecaster
+Mercenary Level: 83
+--------
+Clutches of the Damned
+--------
+Bloody Warp
+Physical as Extra Chaos (Tier: 2)
+Greater Faster Casting (Tier: 3)
+--------
+Seismic Crush
+Cooldown Recovery (Tier: 2)
+Critical Damage (Tier: 2)
+Greater Physical as Extra Chaos (Tier: 3)
+--------
+Ethereal Knives
+Brutality (Tier: 2)
+Greater Critical Chance (Tier: 3)
+More Duration (Tier: 2)
+Greater Multiple Projectiles (Tier: 3)
+Critical Damage (Tier: 2)
+--------
+Flame Dash
+More Duration (Tier: 2)
+Faster Casting (Tier: 2)
+--------
+Grace
+--------
+Right click this item to view Mercenary details.
+Can be used in a personal Map Device alongside a Map to have this previously fought Mercenary reappear in the area for a rematch.

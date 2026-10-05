@@ -24,6 +24,7 @@ test_data/
     variants/                  extra same-scarab captures (see below)
   rucksacks/<session>/         whole-rucksack crops (4 quadrants each), is_gem_present_in_rucksack() cases
   mercenary_names/             extract_text()/name-parsing cases
+  rematch_identity/<capture_id>/  the one warrant file (real if it exists, else generated) behind each REMATCH_IDENTITY_CASES entry -- copied out of the capture archive so the test needs no gitignored captures/
   mercenary_types/             match_mercenary_type() cases
   mercenary_levels/            extract_level() cases
   skills/                      extract_skill_names() cases

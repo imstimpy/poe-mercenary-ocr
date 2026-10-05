@@ -1,0 +1,40 @@
+Item Class: Map Fragments
+Rarity: Normal
+Mercenary Warrant
+--------
+Ivi, the Summoner
+--------
+Build: Cruel Mistress
+Mercenary Level: 83
+--------
+Despair
+Lesser Spell Cascade (Tier: 1)
+More Duration (Tier: 2)
+--------
+Void Sphere
+More Duration (Tier: 2)
+Wither on Hit (Tier: 2)
+Critical Chance (Tier: 2)
+--------
+Soulrend of Reaping
+Critical Damage (Tier: 2)
+Greater Chaos Penetration (Tier: 3)
+Wither on Hit (Tier: 2)
+Chain (Tier: 2)
+Greater Added Chaos (Tier: 3)
+--------
+Forbidden Rite Totem
+Greater Chaos Penetration (Tier: 3)
+Greater Critical Chance (Tier: 3)
+Critical Damage (Tier: 2)
+Ironwood (Tier: 2)
+Added Chaos (Tier: 2)
+--------
+Envy
+--------
+Flame Dash
+Cooldown Recovery (Tier: 2)
+More Duration (Tier: 2)
+--------
+Right click this item to view Mercenary details.
+Can be used in a personal Map Device alongside a Map to have this previously fought Mercenary reappear in the area for a rematch.

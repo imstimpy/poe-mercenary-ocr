@@ -1,0 +1,36 @@
+Item Class: Map Fragments
+Rarity: Normal
+Mercenary Warrant
+--------
+Ventaro Death- dealer
+--------
+Build: Bladecaster
+Mercenary Level: 83
+--------
+Clutches of the Damned
+--------
+Bloody Warp
+Increased Area of Effect (Tier: 2)
+Greater Faster Casting (Tier: 3)
+--------
+Ethereal Knives
+Greater Brutality (Tier: 3)
+Greater Critical Chance (Tier: 3)
+Greater Pierce (Tier: 3)
+More Duration (Tier: 2)
+--------
+Bladefall
+Critical Damage (Tier: 2)
+Lesser Spell Cascade (Tier: 1)
+Physical as Extra Chaos (Tier: 2)
+Greater Critical Chance (Tier: 3)
+Increased Area of Effect (Tier: 2)
+--------
+Flame Dash
+More Duration (Tier: 2)
+Cooldown Recovery (Tier: 2)
+--------
+Aspect of the Spider
+--------
+Right click this item to view Mercenary details.
+Can be used in a personal Map Device alongside a Map to have this previously fought Mercenary reappear in the area for a rematch.

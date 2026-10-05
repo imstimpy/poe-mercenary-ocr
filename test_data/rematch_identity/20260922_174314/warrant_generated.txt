@@ -1,0 +1,39 @@
+Item Class: Map Fragments
+Rarity: Normal
+Mercenary Warrant
+--------
+Orvan, the Keitan Convert
+--------
+Build: Infamous Storming Zealot
+Mercenary Level: 83
+--------
+Unnerving Blast
+Physical as Extra (Tier: 2)
+Increased Area of Effect (Tier: 2)
+Shock Chance (Tier: 2)
+Greater Critical Chance (Tier: 3)
+Faster Casting (Tier: 2)
+--------
+Wave of Conviction
+Second Wind (Tier: 3)
+Greater More Duration (Tier: 3)
+--------
+Tornado of Elemental Turbulence
+Increased Area of Effect (Tier: 2)
+Greater Physical as Extra (Tier: 3)
+Greater Cooldown Recovery (Tier: 3)
+--------
+Divine Ire
+Shock Chance (Tier: 2)
+Critical Chance (Tier: 2)
+Physical as Extra (Tier: 2)
+Greater Lightning Penetration (Tier: 3)
+--------
+Wrath
+--------
+Lightning Warp
+Faster Casting (Tier: 2)
+Less Duration (Tier: 2)
+--------
+Right click this item to view Mercenary details.
+Can be used in a personal Map Device alongside a Map to have this previously fought Mercenary reappear in the area for a rematch.

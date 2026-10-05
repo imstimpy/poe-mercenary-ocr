@@ -1,0 +1,36 @@
+Item Class: Map Fragments
+Rarity: Normal
+Mercenary Warrant
+--------
+Braxol, the Swindler
+--------
+Build: Bladecaster
+Mercenary Level: 83
+--------
+Clutches of the Damned
+--------
+Bloody Warp
+Greater Faster Casting (Tier: 3)
+Cooldown Recovery (Tier: 2)
+--------
+Bladefall
+Greater Critical Damage (Tier: 3)
+Critical Chance (Tier: 2)
+Faster Casting (Tier: 2)
+Greater Brutality (Tier: 3)
+--------
+Blade Vortex
+More Duration (Tier: 2)
+Greater Physical as Extra Chaos (Tier: 3)
+Critical Damage (Tier: 2)
+Increased Area of Effect (Tier: 2)
+Brutality (Tier: 2)
+--------
+Flame Dash
+Faster Casting (Tier: 2)
+Cooldown Recovery (Tier: 2)
+--------
+Aspect of the Spider
+--------
+Right click this item to view Mercenary details.
+Can be used in a personal Map Device alongside a Map to have this previously fought Mercenary reappear in the area for a rematch.
