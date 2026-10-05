@@ -5029,3 +5029,174 @@ Also checked the same pasted warrant's equipped supports
 ("Greater Physical as Extra Chaos (Tier: 3)" on Bladefall of Trarthus)
 against assets/support_icon_coverage.md -- not a tracked gap, already
 fully covered, nothing actionable there.
+
+## "Fireball of Impact" closes out of the never-observed-skills list
+
+Follow-up to the "skills defined but never observed" investigation:
+`captures/20261001_210150` (Talia, the Hateful, Flamehand) has
+`Fireball of Impact` as a real, ground-truth-confirmed skill --
+checked directly against the real warrant.txt, and confirmed genuinely
+in Flamehand's Secondary pool in definitions/skills_by_mercenary.json.
+The live pipeline already extracted it correctly in
+warrant_generated.txt too, matching the real warrant exactly -- no OCR
+or matching issue to fix here, purely a new real sighting.
+
+Unlike the Bladefall of Trarthus case (still only externally confirmed
+via a pasted trade-site warrant, not yet in our own corpus), this one
+is now a genuine first-party capture. Of the original 11 "still never
+observed anywhere" list, this is the first to get resolved by an
+actual capture rather than outside evidence -- consistent with the
+read from that investigation that most of these are "rare but real"
+gaps that should close naturally as the corpus keeps growing, not
+signs of anything wrong with the data or pipeline.
+
+## "Touch of God" now ground-truth confirmed
+
+`captures/20261002_055344` (Tharvik, the Keitan Purifier, Infamous
+Warpriest) has `Touch of God` in its real warrant.txt -- genuinely in
+Warpriest's Secondary pool. Previously this skill was only in the
+"recovered via warrant_generated.txt" group from the never-observed-
+skills investigation (OCR/fuzzy-match evidence only); this upgrades it
+to real ground truth. Generated warrant matches the real one exactly
+except the already-known Minion Damage/Minion Life same-skill
+collision (rendered honestly as "X or Y"), not a new issue.
+
+## "Creeping Frost Trap" now ground-truth confirmed
+
+`captures/20261002_061725` (Cai, the Pity, Frost Ambusher) has
+`Creeping Frost Trap` in its real warrant.txt -- genuinely in Frost
+Ambusher's Secondary pool, the only mercenary type that can roll it.
+Another of the original "still never observed" skills closed by a real
+capture.
+
+Generated warrant differences vs the real one are all the known
+Trap-family Throwing Speed / Trigger Radius / Arcane Traps icon+tier
+collision, not new issues: two honest "X or Y" strings on Creeping
+Frost Trap itself (real values are members of each), plus the
+documented position-agnostic same-skill resolution on Greater Vortex
+Trap -- 3 slots sharing one 3-way collision get assigned in sorted
+order (set of supports correct, physical slot positions of Arcane
+Traps / Greater Trigger Radius swapped vs the real warrant), exactly
+as _resolve_same_skill_collisions' docstring describes.
+
+## Name-extraction regression caught by comparing against a stored generated warrant
+
+User noticed `captures/20260923_062738`'s stored warrant_generated.txt had
+"Dramia Falkyn" while my Cruel Mistress sweep reported "WTc DramiaFalkyn".
+The stored file (capture-time pipeline, pre-pooling) was right; current
+production OCR was wrong -- a real regression from pooling spans across
+`--psm 11` and `--psm 7`: psm 7 read a noise prefix plus the two real words
+merged, both tokens passed `_word_looks_valid`, and ranking by (word count,
+characters) preferred that 16-char span over the correct 13-char one.
+Fix: `_word_looks_valid` now rejects a capital that is neither first nor right
+after a hyphen (zero exceptions across 196 real names). Fixture added
+(`dramia_falkyn.png`).
+
+Then swept all 489 captures with a stored name, diffing current extraction
+against the stored name: 14 differences, 9 improvements, and a second
+pooling-induced pattern -- psm 7 alone appending a Title-Case noise word
+after a complete title ("Immoral Bee", "Cuckoo Saks", "Vain Sul"; also
+"Tenth Bion"). Compared policies against all 216 real-warrant names before
+changing anything: plain longest-wins 213/216 exact; "trust a clean
+word-prefix from the other pass over a longer span only one pass produced"
+214/216, no new misses. Implemented it; `Rakella, the Tenth` is now exact
+(known_issue flag flipped). Lesson: a stored artifact from the previous
+pipeline is a free regression oracle even without ground truth.
+
+Also generated the 3 missing Cruel Mistress warrants (old
+`__captures_20260914` batch) and produced a per-folder skill breakdown for
+all 23 Cruel Mistress folders (13 distinct individuals by name+roll):
+`Dark Bargain` the skill is 0 of 26 secondary fills; chance if each merc
+draws 2 of 6 evenly is about (2/3)^13, roughly 0.5% -- same flavor as the
+Bladefall of Trarthus gap, worth watching.
+
+## Rematch identity: implemented `tools/mercenary_identity.py`, re-ran the type breakdowns
+
+Measured before building (580 captures with a warrant): name alone over-merges (94 of 161
+same-name pairs, 58%, have different skills); name+skills collided once for real (Orvan, the
+Keitan Convert: same name and skills, different supports on every skill); the supports on each
+skill carry the identifying entropy. Equipment-grid pixel difference does not separate rematches
+(5.5-13.7) from different individuals (6.4-19.0) -- not used. Level and build agreed in every
+candidate pair.
+
+Tool: same mercenary = same build, similar name (normalized, difflib ratio >= 0.85 -- OCR name
+noise like "Death- dealer" / "Ivi ... Aol" must not block a merge), same skill SET, and
+compatible supports per skill (an unresolved "X or Y" collision is compatible with X or Y;
+"Unknown" matches anything; order within a skill ignored). Two relaxations, both low-confidence:
+supports missing on a side (older batches), and one capture missing a single skill row the other
+has (a mercenary always has a fixed number of skills, so a one-skill subset is an OCR drop; a
+swap never merges). Representative = real warrant.txt first, then earliest capture. Output:
+assets/mercenary_identities.json (generated) and `--stats TYPE` for the deduplicated skill
+distribution. Tests: 13 checks in tests.py (REMATCH IDENTITY), real-capture cases pinned.
+
+Result: 580 captures -> 502 distinct mercenaries (78 rematch captures merged), 22 low-confidence
+merges, 14 near-misses left unmerged for review (mostly one utility skill swapped: genuinely
+different mercenaries). 111 capture folders have no warrant file at all and are not clustered.
+
+Deduplicated breakdowns (share of slot fills): Bladecaster 26 -> 15, Striker 19 -> 19 (no
+rematches), Sniper 31 -> 24, Cruel Mistress 24 -> 14. Notable gaps: Bladefall of Trarthus 0/15
+(about 0.1% by chance at the external dataset's rate), Dark Bargain skill 0/14 (about 0.3% if
+uniform), Striker Heavy Strike of Vulnerability 4/19 vs 36% external (12%, within chance).
+
+Follow-up: the identity map is machine-local bookkeeping derived from this machine's own
+captures (not reproducible from the repo), so it moved from assets/ to the already-gitignored
+logs/ folder (logs/mercenary_identities.json); only tools/mercenary_identity.py and its tests
+are committed. A fresh run counted 581 captures (one new since) -> 503 distinct mercenaries.
+
+Renamed tools/mercenary_identity.py -> tools/gather_unique_mercenary.py (references in tests.py and
+the tool's own usage text updated; entries above that mention the old name refer to this tool).
+The local output file is still logs/mercenary_identities.json.
+
+## First "Dark Bargain" SKILL observed (Cruel Mistress)
+
+`captures/20261003_104436` (Slythia, the Murderous) has `Dark Bargain` as an equipped skill in
+the real warrant.txt (Greater Area of Effect, Faster Casting, Critical Damage, Added Chaos, Chaos
+Penetration); the generated warrant matches exactly. It was 0 of 14 distinct Cruel Mistress
+mercenaries before (about 0.3% by chance if uniform); now 1 of 15 (3.3% of secondary fills) --
+consistent with a rare roll, not an absent one. The gem was also in this capture (top_left), added
+to test_data/gems/variance/dark_bargain_of_trarthus (3/9). Another entry closed from the
+never-observed-skills list, this time by a first-party capture.
+
+Renamed again: tools/gather_unique_mercenary.py -> tools/gather_unique_mercenaries.py (plural);
+tests.py and the tool's usage text updated.
+
+## "Vaal Flameblast" observed (visually confirmed; no warrant.txt yet)
+
+`captures/20261003_113423` (Thara Thork, Flamehand) has `Vaal Flameblast` in its skills crop --
+confirmed by reading skills.png directly (row 3), and the generated warrant matches. It is in
+Flamehand's Secondary pool, the only type that can roll it. No real warrant.txt exists for this
+capture, so the skill name is visually confirmed but its supports are OCR-inferred only. The same
+crop also shows `Fireball of Impact` (row 4), a second sighting of the skill first confirmed in
+20261001_210150. Another entry off the never-observed-skills list.
+
+Update: real warrant.txt added for captures/20261003_113423 -- `Vaal Flameblast` and `Fireball of
+Impact` are both ground-truth confirmed, and the generated warrant matches the real one exactly
+(name, build, level, every skill and support), so the supports under them are confirmed too.
+
+## Never-observed skills: user-supplied accessibility (2026-10-04)
+
+Never seen in any warrant.txt / warrant_generated.txt (7 of 270 skills in skills_by_mercenary.json),
+with the user's classification:
+
+- **Real, just not captured yet** (confirmed to exist on pathofexile.com/trade): Bladefall of Trarthus
+  (Bladecaster), Fireball (Flamehand), Elemental Hit of Ice (Mysterious Diver, a type with 0 captures).
+- **Inaccessible in game** (listed in the extracted data but cannot be rolled): Charged Dash of the Arcane
+  (Storming Zealot), Power Siphon (Kineticist).
+- **Placeholders, inaccessible**: Do Nothing (Bladereach, whose only Primary it is; 0 captures of that
+  type), [DNT] Unused (Stormhand).
+
+So the genuinely hunt-worthy gaps are Bladefall of Trarthus, Fireball, Elemental Hit of Ice.
+
+Open discrepancy: the user's note that Sacred Wisps support "should be available on Power Siphon, and
+therefore also inaccessible" doesn't match definitions/supports_by_skills.json. Power Siphon's 20
+possible supports contain no Wisps entry; the only skills listing Greater Sacred Wisps (III) (the family
+has no I/II) are Kinetic Bolt, Kinetic Blast of Clustering and Kinetic Rain of Impact, all Kineticist
+skills. Zero warrants anywhere show any Sacred Wisps, and assets/support_icon_coverage.md already lists it
+under "Suspected non-live". No definitions or coverage-report code were changed pending the user's
+clarification of that point.
+
+Sacred Wisps resolved (user, 2026-10-04): none of its three possible skills (Kinetic Bolt, Kinetic Blast
+of Clustering, Kinetic Rain of Impact) show Sacred Wisps support on pathofexile.com/trade, so Greater
+Sacred Wisps (III) is suspected not available in-game. That is exactly how it is already flagged in
+assets/support_icon_coverage_notes.json ("Suspected non-live"), so no data or report change was needed.
+The Power Siphon mention above was a mix-up; Power Siphon's support list has no Wisps entry.

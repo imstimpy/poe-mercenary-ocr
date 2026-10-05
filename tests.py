@@ -293,7 +293,11 @@ MERCENARY_NAME_CASES = [
     # real title word is a more deceptive wrong answer, not a
     # not-quite-perfect right one -- don't flip this to False just
     # because the harness's generic heuristic says so.
-    ("Rakella, the Tenth", True),
+    # UPDATE: now genuinely exact -- extract_mercenary_name trusts a clean
+    # word-prefix read by one OCR pass over a longer span only the other pass
+    # produced (the "Bion" noise appeared in --psm 7 alone). Flag flipped to
+    # False; the containment caveat above no longer applies to this case.
+    ("Rakella, the Tenth", False),
     # KNOWN ISSUE, same category as Rakella immediately above (not a
     # separate bug): "Ivi, the Summoner Aol" (real: "Ivi, the
     # Summoner") -- "Aol" is exactly 3 characters, tied with the
@@ -315,6 +319,16 @@ MERCENARY_NAME_CASES = [
     # behavior down and keep the doc/code comments honest, not because
     # anything needed fixing.
     ("Velessa, the Bardiyan-Born", False),
+    # Regression introduced by the shape-validation redesign itself, caught
+    # by the user comparing a stored warrant_generated.txt (written by the
+    # pre-pooling capture-time pipeline, correct) against current output:
+    # --psm 7 read "WTc DramiaFalkyn" (noise prefix + OCR dropping the space
+    # between two real words). Both tokens passed _word_looks_valid, and the
+    # pooled-span ranking (word count, then characters) preferred that
+    # 16-char span over the correct 13-char "Dramia Falkyn" from --psm 11.
+    # Fixed by rejecting a word with a capital that is neither first nor
+    # directly after a hyphen (zero exceptions across 196 real names).
+    ("Dramia Falkyn", False),
 ]
 
 # All 12 known gems (definitions/gems_by_mercenary.json) -- not all have been seen/
@@ -1363,6 +1377,59 @@ def run_support_tier_tests():
 _SUPPORT_TIER_SUFFIX_RE = re.compile(r"\s+(I|II|III)$")
 
 
+# (capture dir A, capture dir B, should merge as the same mercenary, why)
+REMATCH_IDENTITY_CASES = [
+    ("captures/20260916_165244", "captures/20260916_204518", True, "Braxol, the Swindler -- plain rematch"),
+    ("captures/20260922_174144", "captures/20260923_083326", True, "Ivi, the Summoner -- name OCR noise ('Aol') must not block the merge"),
+    ("captures/20260922_173051", "captures/20260923_083557", True, "Ventaro Death-dealer -- OCR 'Death- dealer' spacing noise"),
+    ("captures/20260928_212700", "captures/20260929_061745", True, "Malkan, the Azadin Agent -- plain rematch"),
+    ("__captures_20260914/20260913_060818", "captures/20260921_103832", False, "Velthara, the Cyaxan-Made -- same name, different roll: two mercenaries"),
+    ("__captures_20260914/20260913_101923", "captures/20260922_174314", False, "Orvan, the Keitan Convert -- same name AND skills, different supports (the real name+skills collision)"),
+    ("__captures_20260914/20260914_060720", "captures/20260922_062304", False, "Zargan, the Keitan Brute -- same name, different skills (Striker)"),
+    ("__captures_20260915/20260914_091453", "__captures_20260916/20260915_170339", False, "identical skills, no supports extracted, different names -- must not merge"),
+]
+
+
+def run_rematch_identity_tests():
+    """tools/gather_unique_mercenaries.py: which captures are the same mercenary re-fought
+    (rematch) and so must be counted once in skill/encounter statistics. Real-
+    capture cases pin the findings behind its key choice (roll = skills +
+    supports, name only as a loose check), plus synthetic checks of the
+    compatibility rules."""
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools"))
+    import gather_unique_mercenaries as mi
+    failed = []
+    for dir_a, dir_b, expect_merge, why in REMATCH_IDENTITY_CASES:
+        a, b = mi.load_capture(dir_a), mi.load_capture(dir_b)
+        if a is None or b is None:
+            failed.append(f"{why}: could not load {dir_a if a is None else dir_b}")
+            continue
+        merged = mi.compare(a, b) is not None
+        if merged != expect_merge:
+            failed.append(f"{why}: merged={merged}, expected {expect_merge}")
+
+    # synthetic rules
+    if not mi.supports_compatible("A (Tier: 2) or B (Tier: 2)", "B (Tier: 2)"):
+        failed.append("an unresolved 'X or Y' support must be compatible with X or Y")
+    if mi.supports_compatible("A (Tier: 2)", "B (Tier: 2)"):
+        failed.append("two different resolved supports must not be compatible")
+    if not mi.support_lists_compatible(["A (Tier: 2)", "B (Tier: 3)"], ["B (Tier: 3)", "A (Tier: 2)"]):
+        failed.append("support order within a skill must not matter")
+    base = {"name": "Test, the Case", "build": "Sniper", "level": "83",
+            "blocks": [("S1", ["A (Tier: 2)"]), ("S2", ["B (Tier: 3)"]), ("S3", [])]}
+    dropped = dict(base, blocks=base["blocks"][:2])
+    swapped = dict(base, blocks=[("S1", ["A (Tier: 2)"]), ("S2", ["B (Tier: 3)"]), ("S4", [])])
+    if mi.compare(base, dropped) != "low":
+        failed.append("a capture missing one skill row should merge, at low confidence")
+    if mi.compare(base, swapped) is not None:
+        failed.append("a skill swapped for a different skill must not merge")
+
+    print(f"REMATCH IDENTITY: {len(REMATCH_IDENTITY_CASES) + 5 - len(failed)}/{len(REMATCH_IDENTITY_CASES) + 5} checks passing")
+    for f in failed:
+        print(f"  XX  {f}")
+    return len(failed)
+
+
 def run_support_coverage_tests():
     """Self-documenting coverage check, not a code-regression suite: for
     every tier of every real support (definitions/supports.json),
@@ -1469,6 +1536,7 @@ def run():
     level_extraction_failures = run_level_extraction_tests()
     support_extraction_failures = run_support_extraction_tests()
     support_tier_failures = run_support_tier_tests()
+    rematch_identity_failures = run_rematch_identity_tests()
     support_coverage_issues = run_support_coverage_tests()
     run_bladefall_spectral_throw_collision_test()
 
@@ -1495,7 +1563,8 @@ def run():
                           + presence_failures + rucksack_presence_failures
                           + blade_ambusher_failures + skill_name_failures
                           + warrant_extracted_text_failures + level_extraction_failures
-                          + support_extraction_failures + support_tier_failures)
+                          + support_extraction_failures + support_tier_failures
+                          + rematch_identity_failures)
     if gem_failures or quadrant_failures:
         print(f"\n(match_icon identity-matching suites have {gem_failures + quadrant_failures} "
               f"failure(s) -- tracked above, not blocking since match_icon no longer "

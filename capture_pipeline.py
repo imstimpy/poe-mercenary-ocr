@@ -307,6 +307,15 @@ def _word_looks_valid(core: str) -> bool:
         return False
     if len(core) > 1 and core[1:].isupper():
         return False
+    # A capital anywhere past the first letter is only ever real directly
+    # after a hyphen ("Bardiyan-Born"). Checked against all 196 real names
+    # (zero exceptions). Catches OCR dropping the space between two real
+    # words ("DramiaFalkyn") -- that merged token plus a noise prefix
+    # ("WTc DramiaFalkyn") otherwise out-ranked the correct "Dramia
+    # Falkyn" in extract_mercenary_name's pooled-span ranking, a
+    # regression versus the pre-pooling pipeline.
+    if any(c.isupper() and core[i - 1] != "-" for i, c in enumerate(core) if i > 0):
+        return False
     return bool(re.fullmatch(r"[A-Za-z](?:[A-Za-z'\-]*[A-Za-z])?", core))
 
 
@@ -463,15 +472,32 @@ def extract_mercenary_name(crop: Image.Image) -> str:
     if processed is None:
         return None
     raw_by_psm = {}
+    spans_by_psm = {}
     all_spans = []
     for psm in ("11", "7"):
         raw = pytesseract.image_to_string(processed, config=f"--psm {psm}").strip()
         if raw:
             raw_by_psm[psm] = raw
-            all_spans.extend(_find_valid_name_spans(raw))
+            spans_by_psm[psm] = _find_valid_name_spans(raw)
+            all_spans.extend(spans_by_psm[psm])
     if all_spans:
         all_spans.sort(key=lambda s: (-len(s.split()), -len(s)))
-        return all_spans[0]
+        best = all_spans[0]
+        # If the longest span only exists because ONE pass appended extra
+        # trailing words, and the other pass independently read a clean
+        # word-prefix of it, trust the prefix: trailing Title-Case noise
+        # ("Bee", "Saks", "Sul", "Bion") shows up in one pass only, so the
+        # two-pass agreement is the signal. Measured against all 216 real-
+        # warrant names: 214 exact vs 213 for plain longest-wins, zero
+        # new misses (also fixes "Rakella, the Tenth Bion").
+        for psm, spans in spans_by_psm.items():
+            if best not in spans:
+                continue
+            other = "7" if psm == "11" else "11"
+            for a in spans_by_psm.get(other, []):
+                if a != best and a not in spans and best.startswith(a + " "):
+                    return a
+        return best
     for psm in ("11", "7"):
         raw = raw_by_psm.get(psm, "")
         matches = _WORD_RUN_RE.findall(raw)
@@ -2667,7 +2693,7 @@ def on_capture(crop_plan, session_exception: str, capture_dir: str = CAPTURE_DIR
     row = build_log_row(record, exceptions=session_exception, timestamp=ts)
 
     warrant_generated_path = os.path.join(session_dir, "warrant_generated.txt")
-    with open(warrant_generated_path, "w", newline="\n") as f:
+    with open(warrant_generated_path, "w", newline="\r\n") as f:
         f.write(build_warrant_extracted_text(record))
 
     try:
