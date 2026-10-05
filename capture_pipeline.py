@@ -2650,6 +2650,20 @@ def _prompt_for_session_options() -> tuple[str, str]:
     return result["exception"], result["capture_dir"]
 
 
+def describe_session_selection(session_exception: str, capture_dir: str) -> str:
+    """One line confirming what _prompt_for_session_options() just
+    registered, in the same "[KEY]=Label" form the prompt itself uses, so
+    a stray or mistimed keypress is visible before any capture is taken
+    instead of silently tagging a whole run."""
+    if capture_dir == CAMPAIGN_CAPTURE_DIR:
+        return (f"[{CAMPAIGN_KEY.upper()}]=Campaign encounter selected "
+                f"(saves to {CAMPAIGN_CAPTURE_DIR}/)")
+    for key, label in EXCEPTION_KEYS.items():
+        if label == session_exception:
+            return f"[{key.upper()}]={label} selected"
+    return "No tag selected"
+
+
 def copy_row_to_clipboard(row: dict):
     """Copies the row as a single tab-separated line to the system
     clipboard, ready to paste directly as a new row in Google Sheets (or
@@ -2738,6 +2752,7 @@ def main():
               f"re-run the calibration step at this resolution.")
 
     session_exception, capture_dir = _prompt_for_session_options()
+    print(describe_session_selection(session_exception, capture_dir))
 
     mode_note = f" (campaign mode -- saving to {capture_dir}/)" if capture_dir == CAMPAIGN_CAPTURE_DIR else ""
     print(f"Ready{mode_note}. Press [{HOTKEY.upper()}] over a paused mercenary encounter to capture. "

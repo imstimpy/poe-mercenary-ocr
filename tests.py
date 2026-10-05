@@ -1430,6 +1430,28 @@ def run_rematch_identity_tests():
     return len(failed)
 
 
+def run_session_selection_message_tests():
+    """capture_pipeline.describe_session_selection: the line printed after
+    the start-of-run tag prompt must name the key and label actually
+    registered, for every EXCEPTION_KEYS entry, campaign mode, and none."""
+    failed = []
+    for key, label in cp.EXCEPTION_KEYS.items():
+        expected = f"[{key.upper()}]={label} selected"
+        got = cp.describe_session_selection(label, cp.CAPTURE_DIR)
+        if got != expected:
+            failed.append(f"{label}: got {got!r}, expected {expected!r}")
+    got = cp.describe_session_selection("", cp.CAMPAIGN_CAPTURE_DIR)
+    if not got.startswith(f"[{cp.CAMPAIGN_KEY.upper()}]=Campaign encounter selected") or cp.CAMPAIGN_CAPTURE_DIR not in got:
+        failed.append(f"campaign: unexpected message {got!r}")
+    if cp.describe_session_selection("", cp.CAPTURE_DIR) != "No tag selected":
+        failed.append("no selection: expected 'No tag selected'")
+    total = len(cp.EXCEPTION_KEYS) + 2
+    print(f"SESSION SELECTION MESSAGE: {total - len(failed)}/{total} passing")
+    for f in failed:
+        print(f"  XX  {f}")
+    return len(failed)
+
+
 def run_support_coverage_tests():
     """Self-documenting coverage check, not a code-regression suite: for
     every tier of every real support (definitions/supports.json),
@@ -1537,6 +1559,7 @@ def run():
     support_extraction_failures = run_support_extraction_tests()
     support_tier_failures = run_support_tier_tests()
     rematch_identity_failures = run_rematch_identity_tests()
+    session_selection_failures = run_session_selection_message_tests()
     support_coverage_issues = run_support_coverage_tests()
     run_bladefall_spectral_throw_collision_test()
 
@@ -1564,7 +1587,7 @@ def run():
                           + blade_ambusher_failures + skill_name_failures
                           + warrant_extracted_text_failures + level_extraction_failures
                           + support_extraction_failures + support_tier_failures
-                          + rematch_identity_failures)
+                          + rematch_identity_failures + session_selection_failures)
     if gem_failures or quadrant_failures:
         print(f"\n(match_icon identity-matching suites have {gem_failures + quadrant_failures} "
               f"failure(s) -- tracked above, not blocking since match_icon no longer "
