@@ -5236,3 +5236,20 @@ ambiguous. Bisected by corpus cutoff (0 ambiguous at 20261005_055123, 10 at 2026
 warrant.txt (a duplicate, no data lost; the capture's own warrant_generated.txt reads as a Ripper) and
 re-ran the harvest: 0 unlabeled files, 0 ground_truth_ambiguous. Lesson: a real warrant.txt is trusted
 unconditionally, so a mis-pasted one silently corrupts the catalog and the rematch/skill stats.
+
+## First Mysterious Diver captured (2026-10-13)
+
+`captures/endgame/20261013_184957` -- Saxon, the Azadin Seadog, Infamous Mysterious Diver, Lvl 77 (confirmed
+on level.png; the map was The Fathomless Depths). The first capture of this type ever; no real warrant.txt.
+Skills (confirmed on skills.png): Elemental Hit of Ice, Frost Bomb | Herald of Ice, Frost Blades | Dash,
+Hatred -- all within the type's pool in skills_by_mercenary.json. Elemental Hit of Ice was on the
+never-observed list, so it comes off (remaining real gaps: Bladefall of Trarthus, Fireball). No gem (Mysterious
+Diver has no gem pool; every quadrant scored <0.76). Added test_data/mercenary_types/infamous_mysterious_diver.png
+(type passes; plain `Mysterious Diver` is still pending a crop). Type recognition and the Infamous flag were
+correct in production output without any change.
+
+Second Mysterious Diver (2026-10-13): `captures/endgame/20261013_185443` -- Dagon, the Azadin Explorer, plain
+(non-Infamous) Mysterious Diver, Lvl 83, same map as the first, a different mercenary (0 rematches). Skills:
+Elemental Hit of Ice, Frost Bomb | Herald of Ice, Frost Blades | Dash, Purity of Ice -- all in the type's pool.
+No gem (all quadrants <0.77). Added test_data/mercenary_types/mysterious_diver.png, which closes the pending
+plain-type fixture (type test now has only the two never-seen types still pending).
