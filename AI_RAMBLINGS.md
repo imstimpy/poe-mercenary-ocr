@@ -5291,3 +5291,18 @@ Caveat: the hand-made real warrant.txt for 20261012_120835 contains two literal 
 collision strings copied from the generated file) in Greater Shock Nova's row; the pipeline resolves them to
 Greater Shock Chance (Tier: 3) and Maximum Shock Effect (Tier: 3). Everything else in that file matches exactly.
 Stored warrant_generated.txt files were NOT regenerated.
+
+## Split-word repair across the two name OCR passes (2026-10-14)
+
+User ground truth: 20260915_105105 is "Tavia, the Diligent" (the stored warrant had "Tavi a, the Diligent",
+regeneration had made it the truncated "Tavia, the Dili"); 20260928_164044 is "T'zara Falken".
+Cause for Tavia: the two passes split DIFFERENT words -- `--psm 11` "Tavi a, the Diligent", `--psm 7` "Tavia, the Dili
+gent" -- so neither held a valid span for the whole name, and the pooled result was whatever span survived.
+Fix: `_repair_split_words(raw, reference)` rejoins two adjacent tokens only when their concatenation is exactly a
+token in the OTHER pass and neither fragment is (per line, so line breaks still separate runs); the repaired
+text adds spans to that pass's own. Validated over all 230 real warrant names: old 228 exact, new 229 exact; the
+one difference is "Ventaro Quick-hand" (was "Quick- hand", a known issue, flag flipped to False). Added
+test_data/mercenary_names/tavia_the_diligent.png. "T'zara Falken" stays a known issue (OCR emits "is T zara
+Falken": the apostrophe became a space and no other pass reads it); a rule joining a lone capital + lowercase
+word would fix it but rests on one observed name, so it was not added.
+Note: the user typed "Dilligent"; name.png reads "Diligent", which is what the fixture expects.

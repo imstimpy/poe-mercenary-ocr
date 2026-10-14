@@ -254,6 +254,15 @@ MERCENARY_NAME_CASES = [
     # real ground-truth names) and, until now, entirely unrepresented in
     # this fixture set (every other comma case here uses "the"). All 3
     # known real examples added together since the bucket is this thin.
+    # Mid-word OCR splits, the category the "KNOWN ISSUE" notes here describe,
+    # but where the two passes split DIFFERENT words of one name: --psm 11
+    # read "Tavi a, the Diligent" and --psm 7 "Tavia, the Dili gent", so
+    # neither held a valid span for the whole name and the pooled result was
+    # the truncated "Tavia, the Dili" (real: "Tavia, the Diligent", per the
+    # user and name.png). _repair_split_words rejoins a split word only when
+    # the other pass read it whole. The same repair fixes "Ventaro Quick-hand"
+    # ("Quick- hand" in one pass, "Quick-hand" in the other).
+    ("Tavia, the Diligent", False),
     ("Baknar, of Unshakeable Faith", False),
     ("Oktor, of House Azadi", False),
     ("Pradin, of House Azadi", False),
@@ -269,7 +278,8 @@ MERCENARY_NAME_CASES = [
     # with no letter after it), so no valid span exists anywhere and this
     # correctly falls through to the honest fallback + NOTE rather than
     # a wrong-but-confident answer.
-    ("Ventaro Quick-hand", True),
+    # UPDATE: now exact (flag flipped to False) -- see tavia_the_diligent below.
+    ("Ventaro Quick-hand", False),
     # KNOWN ISSUE: the inherent limit _MIN_TITLE_WORD_LEN could only
     # partially close (see its own comment) -- trailing noise that is
     # ITSELF Title-Case-shaped and long enough to clear the length floor

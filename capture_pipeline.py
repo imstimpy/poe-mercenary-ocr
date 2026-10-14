@@ -319,6 +319,34 @@ def _word_looks_valid(core: str) -> bool:
     return bool(re.fullmatch(r"[A-Za-z](?:[A-Za-z'\-]*[A-Za-z])?", core))
 
 
+def _repair_split_words(raw: str, reference: str) -> str:
+    """Rejoins a word Tesseract split in two ("Tavi a," / "Dili gent") when
+    the OTHER OCR pass read the joined word whole. Evidence-based, not a
+    guess: two adjacent tokens are merged only if their concatenation is
+    exactly a token of `reference` AND neither fragment is itself a token
+    there. The two name passes tend to split DIFFERENT words of the same
+    name (--psm 11: "Tavi a, the Diligent"; --psm 7: "Tavia, the Dili
+    gent"), so neither pass alone holds a valid span for the whole name,
+    but each holds the other's missing word."""
+    reference_tokens = set(reference.split())
+    repaired_lines = []
+    for line in raw.splitlines():  # line breaks matter: _WORD_RUN_RE treats each line as its own run
+        tokens = line.split()
+        out, i = [], 0
+        while i < len(tokens):
+            if i + 1 < len(tokens):
+                joined = tokens[i] + tokens[i + 1]
+                if (joined in reference_tokens and tokens[i] not in reference_tokens
+                        and tokens[i + 1] not in reference_tokens):
+                    out.append(joined)
+                    i += 2
+                    continue
+            out.append(tokens[i])
+            i += 1
+        repaired_lines.append(" ".join(out))
+    return "\n".join(repaired_lines)
+
+
 def _find_valid_name_spans(raw: str) -> list:
     """Searches raw OCR text for every contiguous span of words that
     matches one of this game's 4 confirmed real name shapes (see
@@ -478,8 +506,16 @@ def extract_mercenary_name(crop: Image.Image) -> str:
         raw = pytesseract.image_to_string(processed, config=f"--psm {psm}").strip()
         if raw:
             raw_by_psm[psm] = raw
-            spans_by_psm[psm] = _find_valid_name_spans(raw)
-            all_spans.extend(spans_by_psm[psm])
+    for psm, raw in raw_by_psm.items():
+        spans = _find_valid_name_spans(raw)
+        other_raw = raw_by_psm.get("7" if psm == "11" else "11")
+        if other_raw:
+            # a word this pass split that the other pass read whole
+            repaired = _repair_split_words(raw, other_raw)
+            if repaired != raw:
+                spans = spans + [s for s in _find_valid_name_spans(repaired) if s not in spans]
+        spans_by_psm[psm] = spans
+        all_spans.extend(spans)
     if all_spans:
         all_spans.sort(key=lambda s: (-len(s.split()), -len(s)))
         best = all_spans[0]
