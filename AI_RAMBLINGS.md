@@ -5253,3 +5253,41 @@ Second Mysterious Diver (2026-10-13): `captures/endgame/20261013_185443` -- Dago
 Elemental Hit of Ice, Frost Bomb | Herald of Ice, Frost Blades | Dash, Purity of Ice -- all in the type's pool.
 No gem (all quadrants <0.77). Added test_data/mercenary_types/mysterious_diver.png, which closes the pending
 plain-type fixture (type test now has only the two never-seen types still pending).
+
+## Skills and supports no longer slide out of row alignment (2026-10-14)
+
+Cause chain found from capture 20261012_120835 (Stormhand, Nia the Hateful), whose generated warrant gave each
+skill the NEXT skill's supports (Purity of Lightning, which can hold none, got five):
+
+1. `extract_skill_names` OCRs two passes of lines. `--psm 3` read row 0 as icon-bleed garbage
+   ("@. conoueriry"); `--psm 6` read "Conductivity" right but dropped "Arc". Tie -> psm 3, and the garbage
+   line was then dropped as icon-bleed noise (quota not full, non-name characters), returning 5 names.
+2. `extract_support_names` pairs supports to skills by list INDEX ("row-aligned by construction"), but the
+   skill list was compacted, so row 0's supports (Conductivity's) went to Sigil of Power, and so on.
+3. Nothing noticed: `resolve_support_name` only culls an ambiguous (colliding) icon against the skill's pool,
+   falling back silently to every candidate if the cull is empty. An unambiguous support was never compared
+   to its skill, and a skill with zero PossibleSupports was never checked at all.
+
+Fixed:
+- `extract_skill_rows()` returns exactly 6 row-aligned entries (None = unread). OCR lines are binned by pixel
+  row (line center / (crop height / 6); 460/460 real matched lines landed on the right row, +-14px of a 30px
+  half-row), both passes are read into rows and a row one pass missed is filled from the other. Per row, the
+  candidate (each line, plus the joined lines for a wrapped name) whose text best spells its matched name wins,
+  so icon-bleed noise beside a clean line can't pick the skill. `extract_skill_names` is now the compacted view.
+- `process_capture` stores `skill_rows`; supports are read and paired by row; `build_warrant_extracted_text`
+  pairs by row and reports supports sitting on an unread row in a `#` footer instead of handing them to a neighbour.
+- `find_support_skill_mismatches()` flags any resolved support the row's skill can't roll (0 hits over all 231
+  real warrants, so a hit is meaningful); logged as a NOTE and a `#` footer line in warrant_generated.txt.
+
+Validation: against all 231 real warrant.txt files the old extraction was exact on 230, the new one on 231
+(rows aligned on all 231); the one difference is this capture. Re-running the pipeline on the 8 captures whose
+stored warrants had a wrong skill-row count: the 4 with an extra (7th) row and 20261012_120835 now read 6 correct
+rows. The validity check also exposed a second real bug in the process: 20260928_162246 row 4 ("MOLTEN SHELL")
+was read as "Anger" because icon noise ("a2 er") fuzzy-matched it first -> the ranking above.
+Fixtures: test_data/skills/stormhand_nia_first_row_garbled.png, smoulderstrike_molten_shell_icon_noise.png,
+test_data/supports/stormhand_nia_first_row_garbled.png; tests for row alignment, warrant footers and the validity rule.
+
+Caveat: the hand-made real warrant.txt for 20261012_120835 contains two literal "A or B or ..." lines (8-way
+collision strings copied from the generated file) in Greater Shock Nova's row; the pipeline resolves them to
+Greater Shock Chance (Tier: 3) and Maximum Shock Effect (Tier: 3). Everything else in that file matches exactly.
+Stored warrant_generated.txt files were NOT regenerated.

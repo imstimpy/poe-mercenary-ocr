@@ -107,6 +107,7 @@ now doesn't." If a known_issue case starts passing, that's good news:
 the script will tell you to remove the marker.
 """
 
+import glob
 import os
 import re
 import sys
@@ -885,6 +886,29 @@ SKILL_NAME_EXTRACTION_CASES = [
     ("Cardinal", "cardinal_orton_block_reorder.png",
      ["Holy Hammers", "Holy Strike", "Holy Sweep", "Sanctified Strike",
       "Herald of Purity", "Purity of Lightning"]),
+    # Real, reproduced ROW-ALIGNMENT bug (20261012_120835, confirmed
+    # against its real warrant.txt): --psm 3 read row 0 as icon-bleed
+    # garbage ("@. conoueriry"), --psm 6 read "Conductivity" correctly but
+    # dropped "Arc", and the old line-based extraction dropped the garbage
+    # row outright -- returning 5 names, which then slid every later
+    # skill up one row against the supports panel (Sigil of Power got
+    # Conductivity's supports, Arc got Sigil's, ..., and Purity of
+    # Lightning, which can't hold any, got Greater Shock Nova's five).
+    # extract_skill_rows() bins OCR lines by pixel row and fills a row one
+    # pass missed from the other. The row-alignment check below is what
+    # pins the position of every name, not just which names were found.
+    # Found by the new support/skill validity check on a real capture
+    # (20260928_162246, confirmed visually on skills.png): row 4's icon art
+    # read as the noise line "a2 er", a weak fuzzy hit on "Anger", right
+    # next to the clean "MOLTEN SHELL". Taking the first match read
+    # "Anger" (which can't roll the supports on that row); the row matcher
+    # now keeps the candidate whose text best spells its name.
+    ("Smoulderstrike", "smoulderstrike_molten_shell_icon_noise.png",
+     ["Punishment", "Inflame", "Vaal Molten Strike", "Infernal Blow of Immolation",
+      "Molten Shell", "Flame Aegis"]),
+    ("Stormhand", "stormhand_nia_first_row_garbled.png",
+     ["Conductivity", "Sigil of Power", "Arc", "Greater Shock Nova",
+      "Purity of Lightning", "Flame Dash"]),
 ]
 
 
@@ -906,9 +930,16 @@ def run_skill_name_extraction_tests():
         known_pool = set(cp.known_skills_for_type(mercenary_type))
         raw = cp.extract_skill_names(Image.open(path), mercenary_type=mercenary_type)
         actual = [name for name in raw if name in known_pool]
+        # Row alignment, not just membership: supports are paired to skills
+        # by row position, so every expected skill must sit on ITS row.
+        rows = [name if name in known_pool else None
+                for name in cp.extract_skill_rows(Image.open(path), mercenary_type=mercenary_type)]
+        expected_rows = expected + [None] * (len(rows) - len(expected))
         detail = f"{filename} ({mercenary_type}): {actual!r}"
-        if actual == expected:
+        if actual == expected and rows == expected_rows:
             results["pass"].append(detail)
+        elif actual == expected:
+            results["fail"].append(f"{detail}  (names right, row positions wrong: {rows!r})")
         else:
             results["fail"].append(f"{detail}  (expected {expected!r})")
 
@@ -979,6 +1010,52 @@ WARRANT_EXTRACTED_TEXT_CASES = [
         },
         None,
         "# unrecognized",
+    ),
+    (
+        # skill_rows keeps an unread row (None) so supports stay paired to
+        # the right skill by ROW: row 0's supports have no skill and are
+        # reported, not handed to Sigil of Power (the 20261012_120835 shift).
+        {
+            "mercenary_name": "Gap, the Row",
+            "infamy": None,
+            "mercenary_type": "Stormhand",
+            "mercenary_level": 83,
+            "skills": ["Sigil of Power", "Arc"],
+            "skill_rows": [None, "Sigil of Power", "Arc", None, None, None],
+            "supports": [["Greater Area of Effect (Tier: 3)"],
+                         ["Increased Area of Effect (Tier: 2)"],
+                         ["Faster Casting (Tier: 2)"], [], [], []],
+        },
+        "Sigil of Power\nIncreased Area of Effect (Tier: 2)\n--------\nArc\nFaster Casting (Tier: 2)",
+        "Sigil of Power\nGreater Area of Effect",
+    ),
+    (
+        {
+            "mercenary_name": "Gap, the Row",
+            "infamy": None,
+            "mercenary_type": "Stormhand",
+            "mercenary_level": 83,
+            "skills": ["Sigil of Power"],
+            "skill_rows": [None, "Sigil of Power", None, None, None, None],
+            "supports": [["Greater Area of Effect (Tier: 3)"], ["Increased Area of Effect (Tier: 2)"],
+                         [], [], [], []],
+        },
+        "# supports with no recognized skill on their row, dropped: row 0: Greater Area of Effect (Tier: 3)",
+        None,
+    ),
+    (
+        {
+            "mercenary_name": "Bad, the Support",
+            "infamy": None,
+            "mercenary_type": "Stormhand",
+            "mercenary_level": 83,
+            "skills": ["Arc"],
+            "skill_rows": ["Arc", None, None, None, None, None],
+            "supports": [["Brutality (Tier: 2)"], [], [], [], [], []],
+            "support_mismatches": [(0, "Arc", "Brutality (Tier: 2)")],
+        },
+        "# support(s) the row's skill can't roll (rows may be misaligned): row 0 Arc: Brutality (Tier: 2)",
+        None,
     ),
 ]
 
@@ -1226,6 +1303,24 @@ SUPPORT_EXTRACTION_CASES = [
     # unlike the two cases above -- real confirmation that the culling
     # fix doesn't just narrow known-ambiguous cases, ordinary captures
     # keep working exactly as before.
+    # The support half of the row-alignment bug above (same capture, its
+    # real warrant.txt agrees on every row; the two culled-to-one lines in
+    # Greater Shock Nova's row are "or" strings in that hand-made file).
+    # Fed the row-aligned skill list, Purity of Lightning's row comes back
+    # empty and every skill gets its own supports.
+    ("stormhand_nia_first_row_garbled.png",
+     ["Conductivity", "Sigil of Power", "Arc", "Greater Shock Nova",
+      "Purity of Lightning", "Flame Dash"],
+     [
+        ["Greater Area of Effect (Tier: 3)", "More Duration (Tier: 2)"],
+        ["Increased Area of Effect (Tier: 2)", "More Duration (Tier: 2)"],
+        ["Faster Casting (Tier: 2)", "Shock Chance (Tier: 2)", "Greater Lightning Penetration (Tier: 3)",
+         "Added Lightning (Tier: 2)", "Chain (Tier: 2)"],
+        ["Lightning Penetration (Tier: 2)", "Second Wind (Tier: 3)", "Greater Faster Casting (Tier: 3)",
+         "Greater Shock Chance (Tier: 3)", "Maximum Shock Effect (Tier: 3)"],
+        [],
+        ["Greater Faster Casting (Tier: 3)", "More Duration (Tier: 2)"],
+     ]),
     ("toxicologist_ryx.png",
      ["Withering Step", "Chaotic Burst", "Chaotic Shot", "Caustic Arrow", "Dash", "Trarthan Agility"],
      [
@@ -1452,6 +1547,49 @@ def run_session_selection_message_tests():
     return len(failed)
 
 
+def run_support_skill_validity_tests():
+    """cp.find_support_skill_mismatches(): a resolved support that the
+    skill on its own row can never roll. Synthetic cases pin the rules;
+    the real-warrant sweep (every captures/*/*/warrant.txt on this machine
+    -- gitignored data, so skipped when absent) pins that the rule has zero
+    false positives on ground truth, which is what makes a hit meaningful."""
+    failed = []
+    arc_ok = ["Faster Casting (Tier: 2)"]
+    cases = [
+        ("a rollable support passes", ["Arc"], [arc_ok], 0),
+        ("a support the skill can't roll is flagged", ["Arc"], [["Brutality (Tier: 2)"]], 1),
+        ("a skill with no possible supports can't hold any", ["Purity of Lightning"], [["Second Wind (Tier: 3)"]], 1),
+        ("one rollable alternative of an 'X or Y' passes", ["Arc"], [["Brutality (Tier: 2) or Faster Casting (Tier: 2)"]], 0),
+        ("no alternative rollable is flagged", ["Arc"], [["Brutality (Tier: 2) or Poison (Tier: 2)"]], 1),
+        ("'Unknown' is never a mismatch", ["Arc"], [["Unknown"]], 0),
+        ("an unread skill row is skipped", [None], [["Brutality (Tier: 2)"]], 0),
+        ("a skill missing from the table is skipped", ["Not A Real Skill"], [["Brutality (Tier: 2)"]], 0),
+    ]
+    for label, skills, supports, expected_count in cases:
+        got = cp.find_support_skill_mismatches(skills, supports)
+        if len(got) != expected_count:
+            failed.append(f"{label}: got {got!r}, expected {expected_count} mismatch(es)")
+
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools"))
+    import gather_unique_mercenaries as mi
+    checked = 0
+    for path in glob.glob(os.path.join("captures", "*", "*", "warrant.txt")):
+        with open(path, encoding="utf-8", errors="replace") as f:
+            record = mi.parse_warrant(f.read())
+        if not record:
+            continue
+        checked += 1
+        bad = cp.find_support_skill_mismatches([b[0] for b in record["blocks"]], [b[1] for b in record["blocks"]])
+        if bad:
+            failed.append(f"real warrant {path}: {bad[0]!r}")
+    print(f"SUPPORT/SKILL VALIDITY: {len(cases) - sum(1 for x in failed if not x.startswith('real warrant'))}/{len(cases)} "
+          f"synthetic passing; {checked} real warrant(s) swept, "
+          f"{sum(1 for x in failed if x.startswith('real warrant'))} with a mismatch")
+    for f in failed:
+        print(f"  XX  {f}")
+    return len(failed)
+
+
 def run_support_coverage_tests():
     """Self-documenting coverage check, not a code-regression suite: for
     every tier of every real support (definitions/supports.json),
@@ -1560,6 +1698,7 @@ def run():
     support_tier_failures = run_support_tier_tests()
     rematch_identity_failures = run_rematch_identity_tests()
     session_selection_failures = run_session_selection_message_tests()
+    support_validity_failures = run_support_skill_validity_tests()
     support_coverage_issues = run_support_coverage_tests()
     run_bladefall_spectral_throw_collision_test()
 
@@ -1587,7 +1726,8 @@ def run():
                           + blade_ambusher_failures + skill_name_failures
                           + warrant_extracted_text_failures + level_extraction_failures
                           + support_extraction_failures + support_tier_failures
-                          + rematch_identity_failures + session_selection_failures)
+                          + rematch_identity_failures + session_selection_failures
+                          + support_validity_failures)
     if gem_failures or quadrant_failures:
         print(f"\n(match_icon identity-matching suites have {gem_failures + quadrant_failures} "
               f"failure(s) -- tracked above, not blocking since match_icon no longer "

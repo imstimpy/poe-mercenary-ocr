@@ -889,19 +889,23 @@ _SKILL_NAME_CHARS_RE = re.compile(r"^[A-Za-z' :]+$")
 _SKILL_OCR_PSM_MODES = (3, 6)
 
 
-def _extract_skill_names_pass(crop: Image.Image, mercenary_type: str, psm: int) -> list:
-    """Real, reproduced bug (see AI_RAMBLINGS.md): `image_to_string`'s raw
-    text stream trusts Tesseract's own internal block-traversal order,
-    which isn't always true top-to-bottom screen order -- confirmed on
-    two independent real captures where one skill's line came out dead
-    last in the stream despite sitting 4th-of-6 on screen, with every
-    OTHER line read and fuzzy-matched correctly (so this isn't an OCR
-    accuracy problem `match_skill_name` could ever fix). `image_to_data`
-    exposes each recognized word's own (block, paragraph, line) grouping
-    and pixel `top` position; grouping words into lines by that triple
-    and then sorting LINES by `top` recovers genuine visual order
-    regardless of which order Tesseract's own segmentation happened to
-    traverse them in.
+# The skills panel is always 6 rows tall (every real crop is 364x360); rows
+# are binned by each OCR line's vertical center, which lands within +-14px
+# of the row middle against 30px of half-height (460/460 real lines).
+_SKILL_ROW_COUNT = 6
+
+
+def _skill_lines_by_row(crop: Image.Image, psm: int) -> dict:
+    """OCRs the skills crop and returns {row_index: [line text, ...]} with
+    each row's lines in top-to-bottom order. A line's row comes from its
+    own pixel position (image_to_data's `top`/`height`), never from how
+    many lines came before it -- so a row whose text OCR garbles or drops
+    leaves a GAP at that row instead of sliding every later skill up one.
+
+    Position is also what makes the old Tesseract block-ORDER bug a
+    non-issue (a line's block-traversal order is irrelevant once rows are
+    read off pixel positions), and a skill name that wraps to two
+    on-screen lines stays inside its own row rather than becoming two.
     """
     data = pytesseract.image_to_data(crop, config=f"--psm {psm}", output_type=pytesseract.Output.DICT)
     lines_by_key = {}
@@ -910,17 +914,52 @@ def _extract_skill_names_pass(crop: Image.Image, mercenary_type: str, psm: int) 
         if not text:
             continue
         key = (data["block_num"][i], data["par_num"][i], data["line_num"][i])
-        entry = lines_by_key.setdefault(key, {"words": [], "top": data["top"][i]})
+        entry = lines_by_key.setdefault(key, {"words": [], "top": data["top"][i], "bottom": 0})
         entry["words"].append((data["left"][i], text))
         entry["top"] = min(entry["top"], data["top"][i])
-    ordered = sorted(lines_by_key.values(), key=lambda entry: entry["top"])
-    lines = [" ".join(word for _left, word in sorted(entry["words"])) for entry in ordered]
-    lines = [_CURLY_QUOTES_RE.sub("'", line) for line in lines]
-    return [match_skill_name(line, mercenary_type, warn=False) for line in lines]
+        entry["bottom"] = max(entry["bottom"], data["top"][i] + data["height"][i])
+    row_height = crop.height / _SKILL_ROW_COUNT
+    rows = {}
+    for entry in sorted(lines_by_key.values(), key=lambda e: e["top"]):
+        text = " ".join(word for _left, word in sorted(entry["words"]))
+        text = _CURLY_QUOTES_RE.sub("'", text)
+        row = min(_SKILL_ROW_COUNT - 1, int((entry["top"] + entry["bottom"]) / 2 / row_height))
+        rows.setdefault(row, []).append(text)
+    return rows
+
+
+def _match_skill_row(texts: list, mercenary_type: str, pool: set):
+    """The known skill (if any) this row's OCR lines spell. Every line is
+    tried on its own and, for a row with more than one line, the lines
+    joined (a wrapped name: "LEAP SLAM OF" / "GROUNDBREAKING" only spells
+    "Leap Slam of Groundbreaking" together, while its first line alone
+    fuzzy-matches the shorter, wrong "Leap Slam"). The candidate whose TEXT
+    most closely spells the name it matched wins, so an icon-bleed line
+    ("a2 er", a weak fuzzy hit on "Anger") can't override the clean line
+    beside it ("MOLTEN SHELL", an exact hit) -- confirmed on a real
+    capture, where taking the first match read Molten Shell as Anger.
+    Ties keep the joined reading, then line order."""
+    candidates = ([" ".join(texts)] if len(texts) > 1 else []) + list(texts)
+    best_name, best_score = None, -1.0
+    for text in candidates:
+        name = match_skill_name(text, mercenary_type, warn=False)
+        if name not in pool:
+            continue
+        score = difflib.SequenceMatcher(None, text.lower(), name.lower()).ratio()
+        if score > best_score:
+            best_name, best_score = name, score
+    return best_name
 
 
 def extract_skill_names(crop: Image.Image, mercenary_type: str = None) -> list:
-    """OCRs the skills region and returns a list of skill name strings, in
+    """The compact form of extract_skill_rows(): just the names found, in
+    on-screen order, with unread rows left out. Use extract_skill_rows() when
+    the position matters (anything pairing skills with the supports panel).
+    The notes below describe the OCR failure modes the row-based reading
+    was built around; it now bins lines by pixel row instead of working
+    on a flat line list, but each failure mode still applies.
+
+    OCRs the skills region and returns a list of skill name strings, in
     on-screen top-to-bottom order (typically 6 for a level 83 mercenary,
     per every real capture examined so far, but this doesn't hard-code
     that count).
@@ -1006,44 +1045,64 @@ def extract_skill_names(crop: Image.Image, mercenary_type: str = None) -> list:
     combination (e.g. "Infamous Warpriest") -- see
     known_skills_for_type's docstring for why.
     """
+    return [name for name in extract_skill_rows(crop, mercenary_type) if name]
+
+
+def extract_skill_rows(crop: Image.Image, mercenary_type: str = None) -> list:
+    """extract_skill_names()'s row-aligned form: exactly _SKILL_ROW_COUNT
+    entries, entry N being the skill read on on-screen row N, or None if
+    that row came back empty/unreadable. A mercenary's supports panel is
+    read by the same fixed 6 row positions (extract_support_names), so
+    pairing the two by INDEX is only correct when this list keeps its
+    gaps -- a compacted skill list slides every later skill up one row
+    and hands each skill the NEXT skill's supports (real capture
+    20261012_120835: the OCR garbled row 0's "Conductivity" and the
+    old compact list gave Sigil of Power Conductivity's supports,
+    Arc Sigil's, and so on down the panel).
+
+    Both OCR passes are read into rows (see _skill_lines_by_row); the pass
+    matching more rows is the primary (ties go to psm 3), and a row it
+    missed is filled from the other pass -- each pass drops rows the
+    other doesn't, on different captures (see extract_skill_names'
+    docstring), and row positions make the two safe to merge, which
+    line lists were not. A row whose text is unreadable in both passes
+    but looks like a name (see the shape checks above) is kept as the
+    raw string, same as before; icon-bleed noise and anything past the
+    type's skill quota is dropped.
+    """
     pool = set(known_skills_for_type(mercenary_type)) or set(all_known_skills())
     min_skill_length = min((len(s) for s in pool), default=0)
     max_skill_count = _max_skill_count_for_type(mercenary_type)
-    passes = [_extract_skill_names_pass(crop, mercenary_type, psm) for psm in _SKILL_OCR_PSM_MODES]
-    chosen = max(passes, key=lambda lines: sum(1 for name in lines if name in pool))
-    matched_count = len({name for name in chosen if name in pool})
+    passes = []
+    for psm in _SKILL_OCR_PSM_MODES:
+        lines = _skill_lines_by_row(crop, psm)
+        matched = {row: _match_skill_row(texts, mercenary_type, pool) for row, texts in lines.items()}
+        passes.append((lines, matched))
+    primary = max(passes, key=lambda p: sum(1 for name in p[1].values() if name))  # ties keep psm 3
+    secondary = next(p for p in passes if p is not primary)
+
+    rows = [None] * _SKILL_ROW_COUNT
+    for row in range(_SKILL_ROW_COUNT):
+        rows[row] = primary[1].get(row) or secondary[1].get(row)
+    matched_count = sum(1 for name in rows if name)
     quota_full = max_skill_count is not None and matched_count >= max_skill_count
-    result = []
-    for name in chosen:
-        if name in pool:
-            if result and result[-1] == name:
-                # A skill name that visually wraps to two on-screen lines
-                # can have BOTH the truncated first line (resolved via
-                # match_skill_name's exact-prefix preference) and the bare
-                # continuation line independently fuzzy-match the SAME
-                # full name -- confirmed real case: "Leap Slam of
-                # Groundbreaking" wrapped to "LEAP SLAM OF" / "GROUNDBREAKING",
-                # both correctly resolving to this name on their own, which
-                # would otherwise produce two rows for one real skill and
-                # shift every later row's alignment by one. A mercenary's
-                # skill list never contains the same name twice (unlike
-                # supports -- see _resolve_same_skill_collisions, this
-                # doesn't apply the other way), so an immediately adjacent
-                # duplicate is always this wrap artifact, never a genuine
-                # repeat.
-                continue
-            result.append(name)
+    for row in range(_SKILL_ROW_COUNT):
+        if rows[row] or quota_full:
             continue
-        if quota_full:
-            continue  # every real skill for this type is already accounted for -- can't be one more, whatever this looks like
-        if len(name) < min_skill_length or not _SKILL_NAME_CHARS_RE.match(name):
-            continue  # structurally can't be a real skill -- icon-bleed noise, not worth flagging
-        result.append(name)
-        _note(f"skill {name!r} didn't confidently match any known skill in "
-              f"either OCR pass (mercenary_type={mercenary_type!r}) -- logged "
-              f"as-is; check definitions/skills_by_mercenary.json if this is "
-              f"a new/valid skill.")
-    return result
+        for lines, _matched in (primary, secondary):
+            texts = lines.get(row)
+            if not texts:
+                continue
+            name = max(texts, key=len)
+            if len(name) < min_skill_length or not _SKILL_NAME_CHARS_RE.match(name):
+                continue  # structurally can't be a real skill -- icon-bleed noise, not worth flagging
+            rows[row] = name
+            _note(f"skill {name!r} (row {row}) didn't confidently match any known skill in "
+                  f"either OCR pass (mercenary_type={mercenary_type!r}) -- logged "
+                  f"as-is; check definitions/skills_by_mercenary.json if this is "
+                  f"a new/valid skill.")
+            break
+    return rows
 
 
 _LEVEL_DIGITS_RE = re.compile(r"(\d+)")
@@ -2022,6 +2081,41 @@ def resolve_support_name(visual_key: str, skill_name: str = None):
     return " or ".join(f"{name} (Tier: {tier})" for name, tier, _roman in members)
 
 
+_SUPPORT_TEXT_RE = re.compile(r"^(.*) \(Tier: (\d)\)$")
+_SUPPORT_TIER_ROMAN = {"1": "I", "2": "II", "3": "III"}
+
+
+def find_support_skill_mismatches(skill_rows: list, support_rows: list) -> list:
+    """Every resolved support that the skill on its own row can never roll,
+    as [(row, skill, support_text)], per definitions/supports_by_skills.json
+    (a skill with no PossibleSupports at all, like Purity of Lightning,
+    can't hold any). Checked against all 231 real warrant.txt files: zero
+    violations, so a hit here means the row pairing or the support read is
+    wrong -- most often skills and supports sliding out of row alignment
+    (see extract_skill_rows). resolve_support_name only culls ambiguous
+    icons against the skill; nothing else ever compared an unambiguous
+    support to its skill. "Unknown" cells and skills missing from the
+    table are skipped (nothing to compare). An unresolved "X or Y" text is
+    a mismatch only if NO alternative is rollable."""
+    table = _load_supports_by_skills()
+    mismatches = []
+    for row, skill in enumerate(skill_rows):
+        if not skill or skill not in table or row >= len(support_rows):
+            continue
+        possible = set(table[skill].get("PossibleSupports", []))
+        for text in support_rows[row]:
+            if text == "Unknown":
+                continue
+            rollable = False
+            for alternative in text.split(" or "):
+                match = _SUPPORT_TEXT_RE.match(alternative.strip())
+                if match and f"{match.group(1)} {_SUPPORT_TIER_ROMAN.get(match.group(2), '')}" in possible:
+                    rollable = True
+            if not rollable:
+                mismatches.append((row, skill, text))
+    return mismatches
+
+
 def _resolve_same_skill_collisions(row_supports: list) -> list:
     """A skill never rolls the exact same support twice -- confirmed
     directly against every real ground-truth capture on hand (663 real
@@ -2209,10 +2303,10 @@ def extract_support_names(crop: Image.Image, skill_names: list = None) -> list:
     detected the same brightness-variance way tools/harvest_support_icons.py
     does).
 
-    `skill_names`, if given, should be extract_skill_names()'s own
-    per-row output (record["skills"], row-aligned by construction --
-    both functions independently number rows 0-5 by the same on-screen
-    grid position) -- passed through to resolve_support_name() so a real
+    `skill_names`, if given, should be extract_skill_rows()'s output
+    (record["skill_rows"] -- row-aligned, None for an unread row; the
+    compact extract_skill_names() list would NOT be, once any row is
+    missed) -- passed through to resolve_support_name() so a real
     icon+tier collision can be culled down to only the support(s) that
     row's own skill can actually roll, per definitions/supports_by_skills.json.
     Without it, every real candidate in a collision is reported.
@@ -2287,7 +2381,8 @@ def process_capture(crops: dict) -> dict:
     infamy, mercenary_type = parse_mercenary_type(extract_text(crops["type_subtype"]))
     combined_type = f"{infamy} {mercenary_type}".strip() if infamy else mercenary_type
     rucksack_slots = ("rucksack_top_left", "rucksack_top_right", "rucksack_bottom_left", "rucksack_bottom_right")
-    skill_names = extract_skill_names(crops["skills"], mercenary_type=combined_type)
+    skill_rows = extract_skill_rows(crops["skills"], mercenary_type=combined_type)
+    skill_names = [name for name in skill_rows if name]
     record = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "mercenary_name": mercenary_name,
@@ -2295,12 +2390,20 @@ def process_capture(crops: dict) -> dict:
         "mercenary_type": mercenary_type,
         "mercenary_level": extract_level(crops["level"]),
         "skills": skill_names,
-        # skill_names passed through so a real icon+tier collision (see
+        # Row-aligned (None = unread row): supports are paired to skills by
+        # row position, which the compact `skills` list above can't give.
+        "skill_rows": skill_rows,
+        # skill_rows passed through so a real icon+tier collision (see
         # resolve_support_name) can be culled to only what each row's own
         # skill can actually roll, not just reported as every candidate
         # the icon+tier could ever mean across all 271 skills.
-        "supports": extract_support_names(crops["supports"], skill_names=skill_names),
+        "supports": extract_support_names(crops["supports"], skill_names=skill_rows),
     }
+    record["support_mismatches"] = find_support_skill_mismatches(skill_rows, record["supports"])
+    for row, skill, text in record["support_mismatches"]:
+        _note(f"row {row}: {skill!r} can't roll support {text!r} -- skills and supports "
+              f"may be out of row alignment, or the support was misread; check this "
+              f"capture's skills.png/supports.png.")
     record.update(is_gem_present_in_rucksack(crops))
 
     # Blade Ambusher is the only type with more than one possible gem --
@@ -2405,8 +2508,18 @@ def build_warrant_extracted_text(record: dict) -> str:
     if level is not None:
         lines.append(f"Mercenary Level: {level}")
     lines.append("--------")
-    for row_idx, skill in enumerate(raw_skills):
+    # Pair by on-screen ROW: skill_rows keeps a None for an unread row, the
+    # compact `skills` list doesn't (and a compact list shifts every later
+    # skill's supports up/down one skill). Records without skill_rows (older
+    # callers, synthetic test records) fall back to the list as given.
+    row_skills = record.get("skill_rows")
+    if row_skills is None:
+        row_skills = raw_skills
+    orphaned = []
+    for row_idx, skill in enumerate(row_skills):
         if skill not in known_pool:
+            if row_idx < len(raw_supports) and raw_supports[row_idx]:
+                orphaned.append(f"row {row_idx}: {', '.join(raw_supports[row_idx])}")
             continue
         lines.append(skill)
         if row_idx < len(raw_supports):
@@ -2415,9 +2528,18 @@ def build_warrant_extracted_text(record: dict) -> str:
     lines.append("Right click this item to view Mercenary details.")
     lines.append("Can be used in a personal Map Device alongside a Map to have this "
                  "previously fought Mercenary reappear in the area for a rematch.")
+    footer = []
     if unrecognized:
+        footer.append(f"# unrecognized skill row(s), dropped: {', '.join(unrecognized)}")
+    if orphaned:
+        footer.append(f"# supports with no recognized skill on their row, dropped: {'; '.join(orphaned)}")
+    mismatches = record.get("support_mismatches") or []
+    if mismatches:
+        details = "; ".join(f"row {row} {skill}: {text}" for row, skill, text in mismatches)
+        footer.append(f"# support(s) the row's skill can't roll (rows may be misaligned): {details}")
+    if footer:
         lines.append("")
-        lines.append(f"# unrecognized skill row(s), dropped: {', '.join(unrecognized)}")
+        lines.extend(footer)
     return "\n".join(lines) + "\n"
 
 
